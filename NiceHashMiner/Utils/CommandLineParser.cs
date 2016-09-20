@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NiceHashMiner.Enums;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,26 +8,23 @@ namespace NiceHashMiner.Utils
     class CommandLineParser
     {
         // keep it simple only two parameters for now
-        readonly bool isConfig = false;
-        readonly bool isLang = false;
-        readonly int langValue = 0;
-
-        // properties
-        public bool IsConfig { get { return isConfig; } }
-        public bool IsLang { get { return isLang; } }
-        public int LangValue { get { return langValue; } }
+        readonly public bool IsLang = false;
+        readonly public LanguageType LangValue = 0;
 
         public CommandLineParser(string[] argv)
         {
             string tmpString;
             if(ParseCommandLine(argv, "-config", out tmpString)) {
-                isConfig = true;
+                Helpers.ConsolePrint("CommandLineParser", "-config parameter has been depreciated, run setting from GUI");
             }
             if (ParseCommandLine(argv, "-lang", out tmpString)) {
-                isLang = true;
+                IsLang = true;
+                int tmp;
                 // if parsing fails set to default
-                if (!Int32.TryParse(tmpString, out langValue)) {
-                    langValue = 0;
+                if (Int32.TryParse(tmpString, out tmp)) {
+                    LangValue = (LanguageType)tmp;
+                } else {
+                    LangValue = LanguageType.En;
                 }
             }
         }

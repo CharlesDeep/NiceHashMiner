@@ -5,6 +5,8 @@ using System.Net;
 using System.IO;
 using System.Windows.Forms;
 using Newtonsoft.Json;
+using NiceHashMiner.Enums;
+using NiceHashMiner.Miners;
 
 namespace NiceHashMiner
 {
@@ -21,14 +23,14 @@ namespace NiceHashMiner
     class NiceHashStats
     {
 #pragma warning disable 649
-        class nicehash_global_stats
-        {
-            public double profitability_above_ltc;
-            public double price;
-            public double profitability_ltc;
-            public int algo;
-            public double speed;
-        }
+        //class nicehash_global_stats
+        //{
+        //    public double profitability_above_ltc;
+        //    public double price;
+        //    public double profitability_ltc;
+        //    public int algo;
+        //    public double speed;
+        //}
 
         public class nicehash_stats
         {
@@ -76,7 +78,7 @@ namespace NiceHashMiner
 #pragma warning restore 649
 
 
-        public static NiceHashSMA[] GetAlgorithmRates(string worker)
+        public static Dictionary<AlgorithmType, NiceHashSMA> GetAlgorithmRates(string worker)
         {
             string r1 = GetNiceHashAPIData("https://www.nicehash.com/api?method=simplemultialgo.info", worker);
             if (r1 == null) return null;
@@ -84,8 +86,16 @@ namespace NiceHashMiner
             nicehash_json_2 nhjson_current;
             try
             {
-                nhjson_current = JsonConvert.DeserializeObject<nicehash_json_2>(r1);
-                return nhjson_current.result.simplemultialgo;
+                nhjson_current = JsonConvert.DeserializeObject<nicehash_json_2>(r1, Globals.JsonSettings);
+                Dictionary<AlgorithmType, NiceHashSMA> ret = new Dictionary<AlgorithmType, NiceHashSMA>();
+                NiceHashSMA[] temp = nhjson_current.result.simplemultialgo;
+                if (temp != null) {
+                    foreach (var sma in temp) {
+                        ret.Add((AlgorithmType)sma.algo, sma);
+                    }
+                    return ret;
+                }
+                return null;
             }
             catch
             {
@@ -102,7 +112,7 @@ namespace NiceHashMiner
             nicehash_json<nicehash_stats> nhjson_current;
             try
             {
-                nhjson_current = JsonConvert.DeserializeObject<nicehash_json<nicehash_stats>>(r1);
+                nhjson_current = JsonConvert.DeserializeObject<nicehash_json<nicehash_stats>>(r1, Globals.JsonSettings);
                 for (int i = 0; i < nhjson_current.result.stats.Length; i++)
                 {
                     if (nhjson_current.result.stats[i].algo == algo)
@@ -128,7 +138,7 @@ namespace NiceHashMiner
                 nicehash_json<nicehash_stats> nhjson_current;
                 try
                 {
-                    nhjson_current = JsonConvert.DeserializeObject<nicehash_json<nicehash_stats>>(r1);
+                    nhjson_current = JsonConvert.DeserializeObject<nicehash_json<nicehash_stats>>(r1, Globals.JsonSettings);
                     for (int i = 0; i < nhjson_current.result.stats.Length; i++)
                     {
                         if (nhjson_current.result.stats[i].algo != 999)
@@ -156,7 +166,7 @@ namespace NiceHashMiner
             nicehashminer_version nhjson;
             try
             {
-                nhjson = JsonConvert.DeserializeObject<nicehashminer_version>(r1);
+                nhjson = JsonConvert.DeserializeObject<nicehashminer_version>(r1, Globals.JsonSettings);
                 return nhjson.version;
             }
             catch
@@ -171,16 +181,7 @@ namespace NiceHashMiner
             string ResponseFromServer;
             try
             {
-                string ActiveMinersGroup = "";
-                
-                for (int i = 0; i < Globals.Miners.Length; i++)
-                    if (Globals.Miners[i].IsRunning)
-                        ActiveMinersGroup += Globals.Miners[i].MinerDeviceName + "/";
-
-                if (ActiveMinersGroup.Length > 0)
-                    ActiveMinersGroup = ActiveMinersGroup.Remove(ActiveMinersGroup.Length - 1);
-                else
-                    ActiveMinersGroup = "IDLE";
+                string ActiveMinersGroup = MinersManager.Instance.GetActiveMinersGroup();
 
                 HttpWebRequest WR = (HttpWebRequest)WebRequest.Create(URL);
                 WR.UserAgent = "NiceHashMiner/" + Application.ProductVersion;

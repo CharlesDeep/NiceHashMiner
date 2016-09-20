@@ -8,470 +8,297 @@ using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
 using System.Management;
+using NiceHashMiner.Configs;
+using NiceHashMiner.Devices;
+using NiceHashMiner.Enums;
 
-namespace NiceHashMiner
+namespace NiceHashMiner.Miners
 {
+    // TODO IMPORTANT, Intensity not handled correctly
+    // for now AMD only
     class sgminer : Miner
     {
-        bool EnableOptimizedVersion;
-        int PlatformDevices, tmpPlatformDevices, GPUPlatformNumber;
-        List<string> GPUCodeName;
-        const string DefaultParam = "--keccak-unroll 0 --hamsi-expand-big 4 ";
-        const string TemperatureParam = " --gpu-fan 30-95 --temp-cutoff 95 --temp-overheat 90" +
-                                        " --temp-target 75 --auto-fan --auto-gpu";
+        private readonly int GPUPlatformNumber;
+        
+        // we only group devices that are compatible. for sgminer we have gpucodename and enabled optimized vesrion as mandatory extra parameters
+        private string CommonGpuCodenameSetting = "";
+        private bool EnableOptimizedVersion = true;
+
+        // benchmark helper variables
+        bool _benchmarkOnce = true;
+        Stopwatch _benchmarkTimer = new Stopwatch();
 
         public sgminer()
-        {
-            SupportedAlgorithms = new Algorithm[] { 
-                new Algorithm( 3, "x11",        "x11",        DefaultParam + "--nfactor 10 --xintensity  640 --thread-concurrency    0 --worksize  64 --gpu-threads 1"),
-                new Algorithm( 4, "x13",        "x13",        DefaultParam + "--nfactor 10 --xintensity   64 --thread-concurrency    0 --worksize  64 --gpu-threads 2"),
-                new Algorithm( 5, "keccak",     "keccak",     DefaultParam + "--nfactor 10 --xintensity  300 --thread-concurrency    0 --worksize  64 --gpu-threads 1"),
-                new Algorithm( 6, "x15",        "x15",        DefaultParam + "--nfactor 10 --xintensity   64 --thread-concurrency    0 --worksize  64 --gpu-threads 2"),
-                new Algorithm( 7, "nist5",      "nist5",      DefaultParam + "--nfactor 10 --xintensity   16 --thread-concurrency    0 --worksize  64 --gpu-threads 2"),
-                new Algorithm( 8, "neoscrypt",  "neoscrypt",  DefaultParam + "--nfactor 10 --xintensity    2 --thread-concurrency 8192 --worksize  64 --gpu-threads 4"),
-                new Algorithm(10, "whirlpoolx", "whirlpoolx", DefaultParam + "--nfactor 10 --xintensity   64 --thread-concurrency    0 --worksize 128 --gpu-threads 2"),
-                new Algorithm(11, "qubit",      "qubitcoin",  DefaultParam + "--intensity 18 --worksize 64 --gpu-threads 2"),
-                new Algorithm(12, "quark",      "quarkcoin",  DefaultParam + "--nfactor 10 --xintensity 1024 --thread-concurrency    0 --worksize  64 --gpu-threads 1"),
-                new Algorithm(14, "lyra2rev2",  "Lyra2REv2",  DefaultParam + "--nfactor 10 --xintensity  160 --thread-concurrency    0 --worksize  64 --gpu-threads 1"),
-                new Algorithm(16, "blake256r8", "blakecoin",  DefaultParam + "--intensity  24 --worksize 128 --gpu-threads 2"),
-                new Algorithm(17, "blake256r14",   "blake",   DefaultParam + "--intensity  24 --worksize 128 --gpu-threads 2"),
-                new Algorithm(18, "blake256r8vnl", "vanilla", DefaultParam + "--intensity  24 --worksize 128 --gpu-threads 2"),
-                new Algorithm(20, "daggerhashimoto", "daggerhashimoto"),
-                new Algorithm(21, "decred", "decred", "--gpu-threads 1 --remove-disabled --xintensity 256 --lookup-gap 2 --worksize 64")
-            };
-
-            MinerDeviceName = "AMD_OpenCL";
-            Path = "bin\\sgminer-5-4-0-general\\sgminer.exe";
-            APIPort = 4050;
+            : base(DeviceType.AMD, "AMD_OpenCL")
+        {            
+            Path = MinerPaths.sgminer_5_5_0_general;
             EnableOptimizedVersion = true;
-            PlatformDevices = 0;
-            GPUPlatformNumber = 0;
-            GPUCodeName = new List<string>();
-
-            if (!Config.ConfigData.DisableDetectionAMD)
-                QueryCDevs();
+            GPUPlatformNumber = ComputeDeviceQueryManager.Instance.AMDOpenCLPlatformNum;
         }
 
-        protected void AddPotentialCDev(string text)
-        {
-            // get number of platform devices to be used to detect card's code name
-            if (text.Contains("Platform devices:"))
-            {
-                try {
-                    PlatformDevices = Int32.Parse(text.Split(' ')[3]);
-                    tmpPlatformDevices = Int32.Parse(text.Split(' ')[3]);
-                    Helpers.ConsolePrint(MinerDeviceName, "Platform Devices: " + PlatformDevices);
-                }
-                catch { PlatformDevices = 0; }
+        // use ONLY for exiting a benchmark
+        public void KillSGMiner() {
+            foreach (Process process in Process.GetProcessesByName("sgminer")) {
+                try { process.Kill(); } catch (Exception e) { Helpers.ConsolePrint(MinerDeviceName, e.ToString()); }
+            }
+        }
 
+        public override void EndBenchmarkProcces() {
+            base.EndBenchmarkProcces();
+            KillSGMiner();
+        }
+
+        protected override int GET_MAX_CooldownTimeInMilliseconds() {
+            return 90 * 1000; // 1.5 minute max, whole waiting time 75seconds
+        }
+
+        protected override void InitSupportedMinerAlgorithms() {
+            var allGroupSupportedList = GroupAlgorithms.GetAlgorithmKeysForGroup(DeviceGroupType.AMD_OpenCL);
+            allGroupSupportedList.Remove(AlgorithmType.DaggerHashimoto);
+            _supportedMinerAlgorithms = allGroupSupportedList.ToArray();
+        }
+
+        public override void SetCDevs(string[] deviceUUIDs) {
+            base.SetCDevs(deviceUUIDs);
+            // now set extra sgminer settings, first dev is enough because of grouping logic
+            if(CDevs.Count != 0) {
+                CommonGpuCodenameSetting = CDevs[0].Codename;
+                EnableOptimizedVersion = CDevs[0].IsOptimizedVersion;
+            }
+        }
+
+        protected override void _Stop(MinerStopType willswitch) {
+            Stop_cpu_ccminer_sgminer(willswitch);
+        }
+
+        public override void Start(Algorithm miningAlgorithm, string url, string username)
+        {
+            CurrentMiningAlgorithm = miningAlgorithm;
+            if (miningAlgorithm == null)
+            {
+                Helpers.ConsolePrint(MinerTAG(), "GetMinerAlgorithm(" + miningAlgorithm.NiceHashID + "): Algo equals to null");
                 return;
             }
 
-            // gets all the card's code name
-            if (PlatformDevices > 0)
-            {
-                PlatformDevices--;
-                GPUCodeName.Add(text.Substring(14).Trim());
-            }
+            Path = GetOptimizedMinerPath(miningAlgorithm.NiceHashID, CommonGpuCodenameSetting, EnableOptimizedVersion);
+            WorkingDirectory = Path.Replace("sgminer.exe", "");
 
-            // skip useless lines
-            if (!text.Contains("GPU") || !text.Contains("assigned") || GPUCodeName.Count == 0) return;
-
-            string[] splt = text.Split(':');
-
-            int id = (int)Char.GetNumericValue(splt[2][8]);
-            string name = splt[splt.Length - 1];
-
-            Helpers.ConsolePrint(MinerDeviceName, "Detected: " + name);
-
-            // add AMD OpenCL devices
-            CDevs.Add(new ComputeDevice(id, MinerDeviceName, name));
-            Helpers.ConsolePrint(MinerDeviceName, "Added: " + name);
-        }
-
-        protected void QueryCDevs()
-        {
-            try
-            {
-                Process P = new Process();
-                P.StartInfo.FileName = Path;
-                P.StartInfo.UseShellExecute = false;
-                P.StartInfo.RedirectStandardError = true;
-                P.StartInfo.CreateNoWindow = true;
-
-                string outdata;
-
-                for (int i = 0; i < 4; i++)
-                {
-                    P.StartInfo.Arguments = "--gpu-platform " + i + " --ndevs";
-                    P.Start();
-                    
-                    do
-                    {
-                        outdata = P.StandardError.ReadLine();
-                        if (outdata != null)
-                        {
-                            if (outdata.Contains("CL Platform name") && outdata.Contains("AMD"))
-                            {
-                                GPUPlatformNumber = i;
-                                i = 20;
-                            }
-                            else if (outdata.Contains("Specified platform that does not exist"))
-                            {
-                                GPUPlatformNumber = -1;
-                                i = 20;
-                            }
-                        }
-                    } while (outdata != null);
-
-                    P.WaitForExit();
-                }
-
-                if (GPUPlatformNumber == -1)
-                {
-                    Helpers.ConsolePrint(MinerDeviceName, "No AMD GPUs found.");
-                    return;
-                }
-
-                P.StartInfo.Arguments = "--gpu-platform " + GPUPlatformNumber + " --ndevs";
-                P.Start();
-
-                do
-                {
-                    outdata = P.StandardError.ReadLine();
-                    if (outdata != null) AddPotentialCDev(outdata);
-                } while (outdata != null);
-
-                P.WaitForExit();
-
-                PlatformDevices = tmpPlatformDevices;
-            }
-            catch (Exception e)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "Exception: " + e.ToString());
-                
-                MinerFileNotFoundDialog WarningDialog = new MinerFileNotFoundDialog(MinerDeviceName, Path);
-                WarningDialog.ShowDialog();
-                
-                if (WarningDialog.DisableDetection)
-                    Config.ConfigData.DisableDetectionAMD = true;
-                
-                WarningDialog = null;
-
-                return;
-            }
-
-            // Check for optimized version
-            for (int i = 0; i < GPUCodeName.Count; i++)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "List: " + GPUCodeName[i]);
-                if (!(GPUCodeName[i].Equals("Bonaire")  || GPUCodeName[i].Equals("Fiji")   || GPUCodeName[i].Equals("Hawaii") ||
-                      GPUCodeName[i].Equals("Pitcairn") || GPUCodeName[i].Equals("Tahiti") || GPUCodeName[i].Equals("Tonga")))
-                {
-                    Helpers.ConsolePrint(MinerDeviceName, "GPU (" + GPUCodeName[i] + ") is not optimized. Switching to general sgminer.");
-                    EnableOptimizedVersion = false;
-                }
-                else
-                {
-                    SupportedAlgorithms[GetAlgoIndex("x11")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 1024 --thread-concurrency 0 --worksize 64 --gpu-threads 1";
-                    SupportedAlgorithms[GetAlgoIndex("qubit")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 1024 --thread-concurrency 0 --worksize 64 --gpu-threads 1";
-                    SupportedAlgorithms[GetAlgoIndex("quark")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 1024 --thread-concurrency 0 --worksize 64 --gpu-threads 1";
-                    SupportedAlgorithms[GetAlgoIndex("lyra2rev2")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 512  --thread-concurrency 0 --worksize 64 --gpu-threads 1";
-                }
-
-                if (!GPUCodeName[i].Equals("Tahiti"))
-                {
-                    SupportedAlgorithms[GetAlgoIndex("neoscrypt")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity    2 --thread-concurrency 8192 --worksize  64 --gpu-threads 2";
-                    Helpers.ConsolePrint(MinerDeviceName, "The GPU detected (" + GPUCodeName[i] + ") is not Tahiti. Changing default gpu-threads to 2.");
-                }
-            }
-
-            // check the driver version
-            bool ShowWarningDialog = false;
-            ManagementObjectCollection moc = new ManagementObjectSearcher("root\\CIMV2", "SELECT * FROM Win32_VideoController").Get();
-
-            foreach (var manObj in moc)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "GPU Name (Driver Ver): " + manObj["Name"] + " (" + manObj["DriverVersion"] + ")");
-
-                if ((manObj["Name"].ToString().Contains("AMD") || manObj["Name"].ToString().Contains("Radeon")) && ShowWarningDialog == false)
-                {
-                    if (GPUCodeName.Count > 0 && CDevs.Count < GPUCodeName.Count)
-                    {
-                        Helpers.ConsolePrint(MinerDeviceName, "Adding missed GPUs: " + manObj["name"].ToString());
-                        CDevs.Add(new ComputeDevice(CDevs.Count, MinerDeviceName, manObj["Name"].ToString()));
-                    }
-
-                    Version AMDDriverVersion = new Version(manObj["DriverVersion"].ToString());
-
-                    if (AMDDriverVersion.Major < 15)
-                    {
-                        ShowWarningDialog = true;
-                        EnableOptimizedVersion = false;
-                        Helpers.ConsolePrint(MinerDeviceName, "WARNING!!! Old AMD GPU driver detected! All optimized versions disabled, mining " +
-                            "speed will not be optimal. Consider upgrading AMD GPU driver. Recommended AMD GPU driver version is 15.7.1.");
-                    }
-                    else if (AMDDriverVersion.Major == 16 && AMDDriverVersion.Minor >= 150)
-                    {
-                        string src = System.IO.Path.GetDirectoryName(Application.ExecutablePath) + "\\" +
-                                     Path.Split('\\')[0] + "\\" + Path.Split('\\')[1] + "\\kernel";
-
-                        foreach (var file in Directory.GetFiles(src))
-                        {
-                            string dest = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Temp\\" + System.IO.Path.GetFileName(file);
-                            if (!File.Exists(dest)) File.Copy(file, dest, false);
-                        }
-                    }
-                }
-            }
-
-            if (EnableOptimizedVersion == false)
-            {
-                SupportedAlgorithms[GetAlgoIndex("x11")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 64 --thread-concurrency 0 --worksize 64 --gpu-threads 2";
-                SupportedAlgorithms[GetAlgoIndex("qubit")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 64 --thread-concurrency 0 --worksize 128 --gpu-threads 4";
-                SupportedAlgorithms[GetAlgoIndex("quark")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 64 --thread-concurrency 0 --worksize 256 --gpu-threads 1";
-                SupportedAlgorithms[GetAlgoIndex("lyra2rev2")].ExtraLaunchParameters = DefaultParam + "--nfactor 10 --xintensity 64 --thread-concurrency 0 --worksize 64 --gpu-threads 2";
-            }
-
-            if (ShowWarningDialog == true && Config.ConfigData.ShowDriverVersionWarning == true)
-            {
-                Form WarningDialog = new DriverVersionConfirmationDialog();
-                WarningDialog.ShowDialog();
-                WarningDialog = null;
-            }
-
-            // Check for ethereum mining
-            EtherDevices = new int[CDevs.Count];
-
-            try
-            {
-                Process P = new Process();
-                P.StartInfo.FileName = Ethereum.EtherMinerPath;
-                P.StartInfo.UseShellExecute = false;
-                P.StartInfo.RedirectStandardError = true;
-                P.StartInfo.CreateNoWindow = true;
-
-                string outdata;
-
-                Helpers.ConsolePrint(MinerDeviceName, "Adding Ethereum..");
-                P.StartInfo.Arguments = "--list-devices --opencl";
-                P.Start();
-
-                int i = 0;
-                do
-                {
-                    outdata = P.StandardError.ReadLine();
-                    if (outdata != null)
-                    {
-                        if (outdata.Contains("Intel") || outdata.Contains("GeForce"))
-                        {
-                            // skips to the next GPU
-                            P.StandardError.ReadLine();
-                            P.StandardError.ReadLine();
-                            P.StandardError.ReadLine();
-                            P.StandardError.ReadLine();
-                            continue;
-                        }
-
-                        if (outdata.Contains("CL_DEVICE_GLOBAL_MEM_SIZE"))
-                        {
-                            long memsize = Convert.ToInt64(outdata.Split(':')[1]);
-                            if (memsize >= 2147483648)
-                            {
-                                Helpers.ConsolePrint(MinerDeviceName, "Ethereum GPU MemSize: " + memsize + " (GOOD!)");
-                                EtherDevices[i] = i;
-                                i++;
-                            }
-                            else
-                            {
-                                Helpers.ConsolePrint(MinerDeviceName, "Ethereum GPU MemSize: " + memsize + " (NOT GOOD!)");
-                                EtherDevices[i] = -1;
-                                i++;
-                            }
-                        }
-                    }
-                } while (outdata != null);
-
-                P.WaitForExit();
-            }
-            catch (Exception e)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "Exception: " + e.ToString());
-            }
-        }
-
-        protected override string BenchmarkCreateCommandLine(int index, int time)
-        {
-            Algorithm Algo = GetMinerAlgorithm(SupportedAlgorithms[index].NiceHashID);
-            if (Algo == null)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "GetMinerAlgorithm(" + index + "): Algo equals to null");
-                return "";
-            }
-
-            string CommandLine;
-            if (Algo.NiceHashName.Equals("daggerhashimoto"))
-            {
-                CommandLine = " --opencl --opencl-platform " + GPUPlatformNumber +
-                              " " + ExtraLaunchParameters +
-                              " " + Algo.ExtraLaunchParameters +
-                              " --benchmark-warmup 40 --benchmark-trial 20" +
-                              " --opencl-devices ";
-
-                int dagdev = -1;
-                for (int i = 0; i < CDevs.Count; i++)
-                {
-                    if (EtherDevices[i] != -1 && CDevs[i].Enabled && !Algo.DisabledDevice[i])
-                    {
-                        CommandLine += i + " ";
-                        if (i == DaggerHashimotoGenerateDevice)
-                            dagdev = DaggerHashimotoGenerateDevice;
-                        else if (dagdev == -1) dagdev = i;
-                    }
-                }
-
-                CommandLine += " --dag-load-mode single " + dagdev.ToString();
-
-                Ethereum.GetCurrentBlock(MinerDeviceName);
-                CommandLine += " --benchmark " + Ethereum.CurrentBlockNum;
-            }
-            else
-            {
-                Path = "cmd";
-                string DirName = GetMinerDirectory(Algo.NiceHashName);
-
-                string url = "stratum+tcp://" + Globals.NiceHashData[SupportedAlgorithms[index].NiceHashID].name + "." +
-                             Globals.MiningLocation[Config.ConfigData.ServiceLocation] + ".nicehash.com:" +
-                             Globals.NiceHashData[SupportedAlgorithms[index].NiceHashID].port;
-
-                string username = Config.ConfigData.BitcoinAddress.Trim();
-                if (Config.ConfigData.WorkerName.Length > 0)
-                    username += "." + Config.ConfigData.WorkerName.Trim();
-
-                CommandLine = " /C \"cd /d " + DirName + " && sgminer.exe " +
-                              " --gpu-platform " + GPUPlatformNumber +
-                              " -k " + SupportedAlgorithms[index].MinerName +
+            LastCommandLine = " --gpu-platform " + GPUPlatformNumber +
+                              " -k " + miningAlgorithm.MinerName +
                               " --url=" + url +
-                              " --userpass=" + username + ":" + GetPassword(Algo) +
-                              " --sched-stop " + DateTime.Now.AddMinutes(time).ToString("HH:mm") +
-                              " -T --log 10 --log-file dump.txt" +
-                              " " + ExtraLaunchParameters +
-                              " " + SupportedAlgorithms[index].ExtraLaunchParameters +
+                              " --userpass=" + username + ":" + Algorithm.PasswordDefault +
+                              " --api-listen" +
+                              " --api-port=" + APIPort.ToString() +
+                              " " + miningAlgorithm.ExtraLaunchParameters +
                               " --device ";
 
-                for (int i = 0; i < CDevs.Count; i++)
-                    if (CDevs[i].Enabled && !Algo.DisabledDevice[i])
-                        CommandLine += CDevs[i].ID.ToString() + ",";
-
-                CommandLine = CommandLine.Remove(CommandLine.Length - 1);
-                if (Config.ConfigData.DisableAMDTempControl == false)
-                    CommandLine += TemperatureParam;
-                CommandLine += " && del dump.txt\"";
-            }
-
-            return CommandLine;
-        }
-
-
-        public override void Start(int nhalgo, string url, string username)
-        {
-            //if (ProcessHandle != null) return; // ignore, already running 
-
-            Algorithm Algo = GetMinerAlgorithm(nhalgo);
-            if (Algo == null)
-            {
-                Helpers.ConsolePrint(MinerDeviceName, "GetMinerAlgorithm(" + nhalgo + "): Algo equals to null");
-                return;
-            }
-
-            if (Algo.NiceHashName.Equals("daggerhashimoto"))
-            {
-                WorkingDirectory = "";
-                LastCommandLine = " --opencl --opencl-platform " + GPUPlatformNumber +
-                                  " " + ExtraLaunchParameters +
-                                  " " + Algo.ExtraLaunchParameters +
-                                  " -S " + url.Substring(14) +
-                                  " -O " + username + ":" + GetPassword(Algo) +
-                                  " --api-port " + Config.ConfigData.ethminerAPIPortAMD.ToString() +
-                                  " --opencl-devices ";
-
-                int dagdev = -1;
-                for (int i = 0; i < CDevs.Count; i++)
-                {
-                    if (EtherDevices[i] != -1 && CDevs[i].Enabled && !Algo.DisabledDevice[i])
-                    {
-                        LastCommandLine += i.ToString() + " ";
-                        if (i == DaggerHashimotoGenerateDevice)
-                            dagdev = DaggerHashimotoGenerateDevice;
-                        else if (dagdev == -1) dagdev = i;
-                    }
-                }
-
-                LastCommandLine += " --dag-load-mode singlekeep " + dagdev.ToString();
-            }
-            else
-            {
-                StartingUpDelay = true;
-
-                WorkingDirectory = GetMinerDirectory(Algo.NiceHashName);
-                Path = WorkingDirectory + "sgminer.exe";
-
-                LastCommandLine = " --gpu-platform " + GPUPlatformNumber +
-                                  " -k " + Algo.MinerName +
-                                  " --url=" + url +
-                                  " --userpass=" + username + ":" + GetPassword(Algo) +
-                                  " --api-listen" +
-                                  " --api-port=" + APIPort.ToString() +
-                                  " " + ExtraLaunchParameters +
-                                  " " + Algo.ExtraLaunchParameters +
-                                  " --device ";
-
-                for (int i = 0; i < CDevs.Count; i++)
-                    if (CDevs[i].Enabled && !Algo.DisabledDevice[i])
-                        LastCommandLine += CDevs[i].ID.ToString() + ",";
-
-                if (LastCommandLine.EndsWith(","))
-                    LastCommandLine = LastCommandLine.Remove(LastCommandLine.Length - 1);
-                else
-                {
-                    LastCommandLine = "";
-                    return; // no GPUs to start mining on
-                }
-
-                if (Config.ConfigData.DisableAMDTempControl == false)
-                    LastCommandLine += TemperatureParam;
-            }
+            LastCommandLine += GetDevicesCommandString();
 
             ProcessHandle = _Start();
         }
 
-        private string GetMinerDirectory(string algo)
-        {
-            string dir = "bin\\";
+        protected override bool UpdateBindPortCommand(int oldPort, int newPort) {
+            // --api-port=
+            const string MASK = "--api-port={0}";
+            var oldApiBindStr = String.Format(MASK, oldPort);
+            var newApiBindStr = String.Format(MASK, newPort);
+            if (LastCommandLine.Contains(oldApiBindStr)) {
+                LastCommandLine = LastCommandLine.Replace(oldApiBindStr, newApiBindStr);
+                return true;
+            }
+            return false;
+        }
 
-            if (EnableOptimizedVersion)
-            {
-                if (algo.Equals("x11") || algo.Equals("quark") || algo.Equals("lyra2rev2") || algo.Equals("qubit"))
-                {
-                    for (int i = 0; i < GPUCodeName.Count; i++)
-                    {
-                        if (!(GPUCodeName[i].Equals("Hawaii") || GPUCodeName[i].Equals("Pitcairn") || GPUCodeName[i].Equals("Tahiti")))
-                        {
-                            if (!Helpers.InternalCheckIsWow64())
-                                return dir + "sgminer-5-4-0-general\\";
+        public override string GetOptimizedMinerPath(AlgorithmType type, string gpuCodename, bool isOptimized) {
+            if (EnableOptimizedVersion) {
+                if (AlgorithmType.Quark == type || AlgorithmType.Lyra2REv2 == type || AlgorithmType.Qubit == type) {
+                    if (!(gpuCodename.Contains("Hawaii") || gpuCodename.Contains("Pitcairn") || gpuCodename.Contains("Tahiti"))) {
+                        if (!Helpers.InternalCheckIsWow64())
+                            return MinerPaths.sgminer_5_5_0_general;
 
-                            return dir + "sgminer-5-4-0-tweaked\\";
-                        }
+                        return MinerPaths.sgminer_5_4_0_tweaked;
                     }
-
-                    if (algo.Equals("x11") || algo.Equals("quark") || algo.Equals("lyra2rev2"))
-                        return dir + "sgminer-5-1-0-optimized\\";
+                    if (AlgorithmType.Quark == type || AlgorithmType.Lyra2REv2 == type)
+                        return MinerPaths.sgminer_5_1_0_optimized;
                     else
-                        return dir + "sgminer-5-1-1-optimized\\";
+                        return MinerPaths.sgminer_5_1_1_optimized;
                 }
             }
 
-            return dir + "sgminer-5-4-0-general\\";
+            return MinerPaths.sgminer_5_5_0_general;
+        }
+
+        // new decoupled benchmarking routines
+        #region Decoupled benchmarking routines
+
+        protected override string BenchmarkCreateCommandLine(ComputeDevice benchmarkDevice, Algorithm algorithm, int time) {
+            string CommandLine;
+            Path = "cmd";
+            string MinerPath = GetOptimizedMinerPath(algorithm.NiceHashID, CommonGpuCodenameSetting, EnableOptimizedVersion);
+
+            var nhAlgorithmData = Globals.NiceHashData[algorithm.NiceHashID];
+            string url = "stratum+tcp://" + nhAlgorithmData.name + "." +
+                         Globals.MiningLocation[ConfigManager.Instance.GeneralConfig.ServiceLocation] + ".nicehash.com:" +
+                         nhAlgorithmData.port;
+
+            string username = ConfigManager.Instance.GeneralConfig.BitcoinAddress.Trim();
+            if (String.IsNullOrEmpty(username) || String.IsNullOrWhiteSpace(username)) {
+                username = Globals.DemoUser;
+            } 
+            if (ConfigManager.Instance.GeneralConfig.WorkerName.Length > 0)
+                username += "." + ConfigManager.Instance.GeneralConfig.WorkerName.Trim();
+
+            // cd to the cgminer for the process bins
+            CommandLine = " /C \"cd /d " + MinerPath.Replace("sgminer.exe", "") + " && sgminer.exe " +
+                          " --gpu-platform " + GPUPlatformNumber +
+                          " -k " + algorithm.MinerName +
+                          " --url=" + url +
+                          " --userpass=" + username + ":" + Algorithm.PasswordDefault +
+                          " --sched-stop " + DateTime.Now.AddSeconds(time).ToString("HH:mm") +
+                          " -T --log 10 --log-file dump.txt" +
+                          " " + algorithm.ExtraLaunchParameters +
+                          " --device ";
+
+            CommandLine += GetDevicesCommandString();
+
+            CommandLine += " && del dump.txt\"";
+
+            return CommandLine;
+        }
+
+        protected override bool BenchmarkParseLine(string outdata) {
+            if (outdata.Contains("Average hashrate:") && outdata.Contains("/s")) {
+                int i = outdata.IndexOf(": ");
+                int k = outdata.IndexOf("/s");
+
+                // save speed
+                string hashSpeed = outdata.Substring(i + 2, k - i + 2);
+                Helpers.ConsolePrint("BENCHMARK", "Final Speed: " + hashSpeed);
+
+                hashSpeed = hashSpeed.Substring(0, hashSpeed.IndexOf(" "));
+                double speed = Double.Parse(hashSpeed, CultureInfo.InvariantCulture);
+
+                if (outdata.Contains("Kilohash"))
+                    speed *= 1000;
+                else if (outdata.Contains("Megahash"))
+                    speed *= 1000000;
+
+                BenchmarkAlgorithm.BenchmarkSpeed = speed;
+                return true;
+            }
+            return false;
+        }
+
+        protected override void BenchmarkThreadRoutineStartSettup() {
+            // sgminer extra settings
+            AlgorithmType NHDataIndex = BenchmarkAlgorithm.NiceHashID;
+
+            if (Globals.NiceHashData == null) {
+                Helpers.ConsolePrint("BENCHMARK", "Skipping sgminer benchmark because there is no internet " +
+                    "connection. Sgminer needs internet connection to do benchmarking.");
+
+                throw new Exception("No internet connection");
+            }
+
+            if (Globals.NiceHashData[NHDataIndex].paying == 0) {
+                Helpers.ConsolePrint("BENCHMARK", "Skipping sgminer benchmark because there is no work on Nicehash.com " +
+                    "[algo: " + BenchmarkAlgorithm.NiceHashName + "(" + NHDataIndex + ")]");
+
+                throw new Exception("No work can be used for benchmarking");
+            }
+
+            _benchmarkTimer.Reset();
+            _benchmarkTimer.Start();
+            // call base
+            base.BenchmarkThreadRoutineStartSettup();
+        }
+
+        protected override void BenchmarkOutputErrorDataReceivedImpl(string outdata) {
+            if (_benchmarkTimer.Elapsed.Minutes >= BenchmarkTimeInSeconds + 1 && _benchmarkOnce == true) {
+                _benchmarkOnce = false;
+                string resp = GetAPIData(APIPort, "quit").TrimEnd(new char[] { (char)0 });
+                Helpers.ConsolePrint("BENCHMARK", "SGMiner Response: " + resp);
+            }
+            if (_benchmarkTimer.Elapsed.Minutes >= BenchmarkTimeInSeconds + 2) {
+                _benchmarkTimer.Stop();
+                // this is safe in a benchmark
+                KillSGMiner();
+                BenchmarkSignalHanged = true;
+            }
+            if (!BenchmarkSignalFinnished) {
+                CheckOutdata(outdata);
+            }
+        }
+
+        #endregion // Decoupled benchmarking routines
+
+        // TODO _currentMinerReadStatus
+        public override APIData GetSummary() {
+            string resp;
+            string aname = null;
+            APIData ad = new APIData();
+
+            resp = GetAPIData(APIPort, "summary");
+            if (resp == null) {
+                _currentMinerReadStatus = MinerAPIReadStatus.NONE;
+                return null;
+            }
+
+            try {
+                // Checks if all the GPUs are Alive first
+                string resp2 = GetAPIData(APIPort, "devs");
+                if (resp2 == null) {
+                    _currentMinerReadStatus = MinerAPIReadStatus.NONE;
+                    return null;
+                }
+
+                string[] checkGPUStatus = resp2.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 1; i < checkGPUStatus.Length - 1; i++) {
+                    if (!checkGPUStatus[i].Contains("Status=Alive")) {
+                        Helpers.ConsolePrint(MinerTAG(), ProcessTag() + " GPU " + i + ": Sick/Dead/NoStart/Initialising/Disabled/Rejecting/Unknown");
+                        _currentMinerReadStatus = MinerAPIReadStatus.WAIT;
+                        return null;
+                    }
+                }
+
+                string[] resps = resp.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (resps[1].Contains("SUMMARY")) {
+                    string[] data = resps[1].Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    // Get miner's current total speed
+                    string[] speed = data[4].Split(new char[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
+                    // Get miner's current total MH
+                    double total_mh = Double.Parse(data[18].Split(new char[] { '=' }, StringSplitOptions.RemoveEmptyEntries)[1], new CultureInfo("en-US"));
+
+                    ad.Speed = Double.Parse(speed[1]) * 1000;
+
+                    aname = CurrentMiningAlgorithm.MinerName;
+
+
+                    if (total_mh <= PreviousTotalMH) {
+                        Helpers.ConsolePrint(MinerTAG(), ProcessTag() + " SGMiner might be stuck as no new hashes are being produced");
+                        Helpers.ConsolePrint(MinerTAG(), ProcessTag() + " Prev Total MH: " + PreviousTotalMH + " .. Current Total MH: " + total_mh);
+                        _currentMinerReadStatus = MinerAPIReadStatus.NONE;
+                        return null;
+                    }
+
+                    PreviousTotalMH = total_mh;
+                } else {
+                    ad.Speed = 0;
+                }
+            } catch {
+                _currentMinerReadStatus = MinerAPIReadStatus.NONE;
+                return null;
+            }
+
+            _currentMinerReadStatus = MinerAPIReadStatus.GOT_READ;
+            FillAlgorithm(aname, ref ad);
+            // check if speed zero
+            if (ad.Speed == 0) _currentMinerReadStatus = MinerAPIReadStatus.READ_SPEED_ZERO;
+
+            return ad;
         }
     }
 }

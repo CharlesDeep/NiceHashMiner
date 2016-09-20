@@ -4,314 +4,579 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Text;
-using System.Threading;
 using System.Windows.Forms;
-using System.Globalization;
+using NiceHashMiner.Configs;
+using NiceHashMiner.Devices;
+using NiceHashMiner.Enums;
+using NiceHashMiner.Miners;
+using NiceHashMiner.Interfaces;
 
-namespace NiceHashMiner
-{
-    public partial class Form_Benchmark : Form
-    {
-        private int index;
-        private bool inBenchmark;
+namespace NiceHashMiner.Forms {
+    public partial class Form_Benchmark : Form, IListItemCheckColorSetter, IBenchmarkComunicator, IBenchmarkCalculation {
 
-        private int Time;
-        private int TimeIndex = 1;
-        private Miner CurrentlyBenchmarking;
+        private bool _inBenchmark = false;
+        private int _bechmarkCurrentIndex = 0;
+        private int _bechmarkedSuccessCount = 0;
+        private int _benchmarkAlgorithmsCount = 0;
+        private AlgorithmBenchmarkSettingsType _algorithmOption = AlgorithmBenchmarkSettingsType.SelectedUnbenchmarkedAlgorithms;
 
-        public Form_Benchmark(bool autostart)
-        {
+        private List<Miner> _benchmarkMiners;
+        private Miner _currentMiner;
+        private List<Tuple<ComputeDevice, Queue<Algorithm>>> _benchmarkDevicesAlgorithmQueue;
+
+        private bool ExitWhenFinished = false;
+        private AlgorithmType _singleBenchmarkType = AlgorithmType.NONE;
+
+        private Timer _benchmarkingTimer;
+        private int dotCount = 0;
+
+        private struct DeviceAlgo {
+            public string Device { get; set; }
+            public string Algorithm { get; set; }
+        }
+        private List<DeviceAlgo> _benchmarkFailedAlgoPerDev;
+
+        private enum BenchmarkSettingsStatus : int {
+            NONE = 0,
+            TODO,
+            DISABLED_NONE,
+            DISABLED_TODO
+        }
+        private Dictionary<string, BenchmarkSettingsStatus> _benchmarkDevicesAlgorithmStatus;
+        private ComputeDevice _currentDevice;
+        private Algorithm _currentAlgorithm;
+
+        private string CurrentAlgoName;
+
+        
+
+        private static Color DISABLED_COLOR = Color.DarkGray;
+        private static Color BENCHMARKED_COLOR = Color.LightGreen;
+        private static Color UNBENCHMARKED_COLOR = Color.LightBlue;
+        public void LviSetColor(ListViewItem lvi) {
+            var cdvo = lvi.Tag as NiceHashMiner.Forms.Components.DevicesListViewEnableControl.ComputeDeviceEnabledOption;
+            if (cdvo != null && _benchmarkDevicesAlgorithmStatus != null) {
+                var uuid = cdvo.CDevice.UUID;
+                if (!cdvo.IsEnabled) {
+                    lvi.BackColor = DISABLED_COLOR;
+                } else {
+                    switch (_benchmarkDevicesAlgorithmStatus[uuid]) {
+                        case BenchmarkSettingsStatus.TODO:
+                        case BenchmarkSettingsStatus.DISABLED_TODO:
+                            lvi.BackColor = UNBENCHMARKED_COLOR;
+                            break;
+                        case BenchmarkSettingsStatus.NONE:
+                        case BenchmarkSettingsStatus.DISABLED_NONE:
+                            lvi.BackColor = BENCHMARKED_COLOR;
+                            break;
+                    }
+                }
+                //// enable disable status, NOT needed
+                //if (cdvo.IsEnabled && _benchmarkDevicesAlgorithmStatus[uuid] >= BenchmarkSettingsStatus.DISABLED_NONE) {
+                //    _benchmarkDevicesAlgorithmStatus[uuid] -= 2;
+                //} else if (!cdvo.IsEnabled && _benchmarkDevicesAlgorithmStatus[uuid] <= BenchmarkSettingsStatus.TODO) {
+                //    _benchmarkDevicesAlgorithmStatus[uuid] += 2;
+                //}
+            }
+        }
+
+        public Form_Benchmark(BenchmarkPerformanceType benchmarkPerformanceType = BenchmarkPerformanceType.Standard,
+            bool autostart = false,
+            //List<ComputeDevice> enabledDevices = null,
+            AlgorithmType singleBenchmarkType = AlgorithmType.NONE) {
             InitializeComponent();
 
-            this.Text = International.GetText("form2_title");
-            buttonStartBenchmark.Text = International.GetText("form2_buttonStartBenchmark");
-            buttonStopBenchmark.Text = International.GetText("form2_buttonStopBenchmark");
-            buttonReset.Text = International.GetText("form2_buttonReset");
-            buttonClose.Text = International.GetText("form2_buttonClose");
-            buttonCheckProfitability.Text = International.GetText("form2_buttonCheckProfitability");
-            buttonSubmitHardware.Text = International.GetText("form2_buttonSubmitHardware");
+            _singleBenchmarkType = singleBenchmarkType;
 
-            radioButton_QuickBenchmark.Text = International.GetText("form2_radioButton_QuickBenchmark");
-            radioButton_StandardBenchmark.Text = International.GetText("form2_radioButton_StandardBenchmark");
-            radioButton_PreciseBenchmark.Text = International.GetText("form2_radioButton_PreciseBenchmark");
+            benchmarkOptions1.SetPerformanceType(benchmarkPerformanceType);
+            
+            // benchmark only unique devices
+            devicesListViewEnableControl1.SetIListItemCheckColorSetter(this);
+            devicesListViewEnableControl1.SetAllEnabled = true;
+            //devicesListViewEnableControl1.SaveToGeneralConfig = true;
+            devicesListViewEnableControl1.SetComputeDevices(ComputeDevice.AllAvaliableDevices);
 
-            listView1.Columns[0].Text = International.GetText("ListView_Enabled");
-            listView1.Columns[1].Text = International.GetText("ListView_Device");
-            listView1.Columns[2].Text = International.GetText("ListView_Algorithm");
-            listView1.Columns[3].Text = International.GetText("ListView_Speed");
+            // use this to track miner benchmark statuses
+            _benchmarkMiners = new List<Miner>();
 
-            foreach (Miner m in Globals.Miners)
-            {
-                for (int i = 0; i < m.SupportedAlgorithms.Length; i++)
-                {
-                    ListViewItem lvi = new ListViewItem();
-                    lvi.Checked = !m.SupportedAlgorithms[i].Skip;
-                    if (m.EnabledDeviceCount() == 0)
-                    {
-                        lvi.Checked = false;
-                        lvi.BackColor = Color.LightGray;
-                    }
-                    lvi.SubItems.Add(m.MinerDeviceName);
-                    ListViewItem.ListViewSubItem sub = lvi.SubItems.Add(m.SupportedAlgorithms[i].NiceHashName);
-                    sub.Tag = i;
-                    if (m.SupportedAlgorithms[i].BenchmarkSpeed > 0)
-                        lvi.SubItems.Add(m.PrintSpeed(m.SupportedAlgorithms[i].BenchmarkSpeed));
-                    else
-                        lvi.SubItems.Add("");
-                    lvi.Tag = m;
-                    listView1.Items.Add(lvi);
+            InitLocale();
+
+            _benchmarkingTimer = new Timer();
+            _benchmarkingTimer.Tick += BenchmarkingTimer_Tick;
+            _benchmarkingTimer.Interval = 1000; // 1s
+
+            // name, UUID
+            Dictionary<string, string> benchNamesUUIDs = new Dictionary<string, string>();
+            // initialize benchmark settings for same cards to only copy settings
+            foreach (var GdevSetting in devicesListViewEnableControl1.Options) {
+                var plainDevName = GdevSetting.CDevice._nameNoNums;
+                if (benchNamesUUIDs.ContainsKey(plainDevName)) {
+                    GdevSetting.IsEnabled = false;
+                    GdevSetting.CDevice.BenchmarkCopyUUID = benchNamesUUIDs[plainDevName];
+                } else {
+                    benchNamesUUIDs.Add(plainDevName, GdevSetting.CDevice.UUID);
+                    GdevSetting.IsEnabled = true; // enable benchmark
+                    GdevSetting.CDevice.BenchmarkCopyUUID = null;
                 }
             }
 
-            inBenchmark = false;
+            //groupBoxAlgorithmBenchmarkSettings.Enabled = _singleBenchmarkType == AlgorithmType.NONE;
+            devicesListViewEnableControl1.Enabled = _singleBenchmarkType == AlgorithmType.NONE;
+            devicesListViewEnableControl1.SetDeviceSelectionChangedCallback(devicesListView1_ItemSelectionChanged);
 
-            if (autostart)
-                buttonStartBenchmark_Click(null, null);
-        }
+            devicesListViewEnableControl1.SetAlgorithmsListView(algorithmsListView1);
+            devicesListViewEnableControl1.IsBenchmarkForm = true;
+            devicesListViewEnableControl1.IsSettingsCopyEnabled = true;
 
+            ResetBenchmarkProgressStatus();
+            CalcBenchmarkDevicesAlgorithmQueue();
+            devicesListViewEnableControl1.ResetListItemColors();
 
-        private void BenchmarkCompleted(bool success, string text, object tag)
-        {
-            if (this.InvokeRequired)
-            {
-                BenchmarkComplete d = new BenchmarkComplete(BenchmarkCompleted);
-                this.Invoke(d, new object[] { success, text, tag });
-            }
-            else
-            {
-                inBenchmark = false;
-                CurrentlyBenchmarking = null;
+            // to update laclulation status
+            devicesListViewEnableControl1.BenchmarkCalculation = this;
+            algorithmsListView1.BenchmarkCalculation = this;
 
-                ListViewItem lvi = tag as ListViewItem;
-                lvi.SubItems[3].Text = text;
-
-                // initiate new benchmark
-                InitiateBenchmark();
+            if (autostart) {
+                ExitWhenFinished = true;
+                StartStopBtn_Click(null, null);
             }
         }
 
-
-        private void InitiateBenchmark()
-        {
-            if (listView1.Items.Count > index)
-            {
-                ListViewItem lvi = listView1.Items[index];
-                index++;
-
-                if (!lvi.Checked)
-                {
-                    InitiateBenchmark();
-                    return;
-                }
-
-                Miner m = lvi.Tag as Miner;
-                int i = (int)lvi.SubItems[2].Tag;
-                //lvi.SubItems[3].Text = "Please wait...";
-                inBenchmark = true;
-                CurrentlyBenchmarking = m;
-
-                if (m is cpuminer)
-                {
-                    Time = Config.ConfigData.BenchmarkTimeLimitsCPU[TimeIndex];
-                    lvi.SubItems[3].Text = String.Format(International.GetText("form2_listView_WaitSeconds"), Time);
-                }
-                else if (m is ccminer)
-                {
-                    Time = Config.ConfigData.BenchmarkTimeLimitsNVIDIA[TimeIndex];
-
-                    if (lvi.SubItems[2].Text.Equals("daggerhashimoto"))
-                        lvi.SubItems[3].Text = International.GetText("form2_listView_WaitForEth");
-                    else
-                        lvi.SubItems[3].Text = String.Format(International.GetText("form2_listView_WaitSeconds"), Time);
-                }
-                else
-                {
-                    Time = Config.ConfigData.BenchmarkTimeLimitsAMD[TimeIndex] / 60;
-
-                    // add an aditional minute if second is not 0
-                    if (DateTime.Now.Second != 0)
-                        Time += 1;
-
-                    if (lvi.SubItems[2].Text.Equals("daggerhashimoto"))
-                        lvi.SubItems[3].Text = International.GetText("form2_listView_WaitForEth");
-                    else
-                        lvi.SubItems[3].Text = String.Format(International.GetText("form2_listView_WaitMinutes"), Time);
-                }
-
-                m.BenchmarkStart(i, Time, BenchmarkCompleted, lvi);
+        private void CopyBenchmarks() {
+            Helpers.ConsolePrint("CopyBenchmarks", "Checking for benchmarks to copy");
+            foreach (var GdevSetting in devicesListViewEnableControl1.Options) {
+                // check if copy
+                if (!GdevSetting.IsEnabled && GdevSetting.CDevice.BenchmarkCopyUUID != null) {
+                    var copyCdevSettings = ComputeDevice.GetDeviceWithUUID(GdevSetting.CDevice.BenchmarkCopyUUID);
+                    if (copyCdevSettings != null) {
+                        Helpers.ConsolePrint("CopyBenchmarks", String.Format("Copy from {0} to {1}", GdevSetting.CDevice.UUID, GdevSetting.CDevice.BenchmarkCopyUUID));
+                        GdevSetting.CDevice.CopyBenchmarkSettingsFrom(copyCdevSettings);
+                    }
+                } 
             }
-            else
+        }
+
+        private void BenchmarkingTimer_Tick(object sender, EventArgs e) {
+            if (_inBenchmark) {
+                algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID, getDotsWaitString());
+            }
+        }
+
+        private string getDotsWaitString() {
+            ++dotCount;
+            if (dotCount > 3) dotCount = 1;
+            return new String('.', dotCount);
+        }
+
+        private void InitLocale() {
+            this.Text = International.GetText("Form_Benchmark_title"); //International.GetText("SubmitResultDialog_title");
+            //labelInstruction.Text = International.GetText("SubmitResultDialog_labelInstruction");
+            StartStopBtn.Text = International.GetText("SubmitResultDialog_StartBtn");
+            CloseBtn.Text = International.GetText("SubmitResultDialog_CloseBtn");
+
+            // TODO fix locale for benchmark enabled label
+            devicesListViewEnableControl1.InitLocale();
+            benchmarkOptions1.InitLocale();
+            algorithmsListView1.InitLocale();
+            groupBoxBenchmarkProgress.Text = International.GetText("FormBenchmark_Benchmark_GroupBoxStatus");
+            radioButton_SelectedUnbenchmarked.Text = International.GetText("FormBenchmark_Benchmark_All_Selected_Unbenchmarked");
+            radioButton_RE_SelectedUnbenchmarked.Text = International.GetText("FormBenchmark_Benchmark_All_Selected_ReUnbenchmarked");
+        }
+
+        private void StartStopBtn_Click(object sender, EventArgs e) {
+            if (_inBenchmark) {
+                StopButonClick();
+                BenchmarkStoppedGUISettings();
+            } else if (StartButonClick()) {
+                StartStopBtn.Text = International.GetText("Form_Benchmark_buttonStopBenchmark");
+            }
+        }
+
+        private void BenchmarkStoppedGUISettings() {
+            StartStopBtn.Text = International.GetText("Form_Benchmark_buttonStartBenchmark");
+            // clear benchmark pending status
+            if (_currentAlgorithm != null) _currentAlgorithm.ClearBenchmarkPending();
+            foreach (var deviceAlgosTuple in _benchmarkDevicesAlgorithmQueue) {
+                foreach (var algo in deviceAlgosTuple.Item2) {
+                    algo.ClearBenchmarkPending();
+                }
+            }
+            ResetBenchmarkProgressStatus();
+            CalcBenchmarkDevicesAlgorithmQueue();
+            //groupBoxAlgorithmBenchmarkSettings.Enabled = true && _singleBenchmarkType == AlgorithmType.NONE;
+            benchmarkOptions1.Enabled = true;
+
+            algorithmsListView1.IsInBenchmark = false;
+            devicesListViewEnableControl1.IsInBenchmark = false;
+            // TODO make scrolable but not checkable
+            //devicesListViewEnableControl1.Enabled = true && _singleBenchmarkType == AlgorithmType.NONE;
+            if (_currentDevice != null) {
+                algorithmsListView1.RepaintStatus(_currentDevice.ComputeDeviceEnabledOption.IsEnabled, _currentDevice.UUID);
+            }
+
+            CloseBtn.Enabled = true;
+        }
+
+        // TODO add list for safety and kill all miners
+        private void StopButonClick() {
+            _benchmarkingTimer.Stop();
+            _inBenchmark = false;
+            Helpers.ConsolePrint("FormBenchmark", "StopButonClick() benchmark routine stopped");
+            // copy benchmarked
+            CopyBenchmarks();
+            if (_currentMiner != null) {
+                _currentMiner.BenchmarkSignalQuit = true;
+            }
+            if (ExitWhenFinished) {
+                this.Close();
+            }
+        }
+
+        private bool StartButonClick() {
+            CalcBenchmarkDevicesAlgorithmQueue();
+            // device selection check scope
             {
-                // average all cpu benchmarks
-                if (Globals.Miners[0] is cpuminer)
-                {
-                    Helpers.ConsolePrint("BENCHMARK", "Calculating average CPU speeds:");
-
-                    double[] Speeds = new double[Globals.Miners[0].SupportedAlgorithms.Length];
-                    int[] MTaken = new int[Globals.Miners[0].SupportedAlgorithms.Length];
-
-                    foreach (ListViewItem lvi in listView1.Items)
-                    {
-                        if (lvi.Tag is cpuminer)
-                        {
-                            Miner m = lvi.Tag as Miner;
-                            int i = (int)lvi.SubItems[2].Tag;
-                            if (m.SupportedAlgorithms[i].BenchmarkSpeed > 0)
-                            {
-                                Speeds[i] += m.SupportedAlgorithms[i].BenchmarkSpeed;
-                                MTaken[i]++;
-                            }
-                        }
-                    }
-
-                    for (int i = 0; i < Speeds.Length; i++)
-                    {
-                        if (MTaken[i] > 0) Speeds[i] /= MTaken[i];
-                        Helpers.ConsolePrint("BENCHMARK", Globals.Miners[0].SupportedAlgorithms[i].NiceHashName + " average speed: " + Globals.Miners[0].PrintSpeed(Speeds[i]));
-
-                        foreach (Miner m in Globals.Miners)
-                        {
-                            if (m is cpuminer)
-                                m.SupportedAlgorithms[i].BenchmarkSpeed = Speeds[i];
-                        }
+                bool noneSelected = true;
+                foreach (var option in devicesListViewEnableControl1.Options) {
+                    if (option.IsEnabled) {
+                        noneSelected = false;
+                        break;
                     }
                 }
+                if (noneSelected) {
+                    MessageBox.Show(International.GetText("FormBenchmark_No_Devices_Selected_Msg"),
+                        International.GetText("FormBenchmark_No_Devices_Selected_Title"),
+                        MessageBoxButtons.OK);
+                    return false;
+                }
+            }
+            // device todo benchmark check scope
+            {
+                bool nothingToBench = true;
+                foreach (var statusKpv in _benchmarkDevicesAlgorithmStatus) {
+                    if (statusKpv.Value == BenchmarkSettingsStatus.TODO) {
+                        nothingToBench = false;
+                        break;
+                    }
+                }
+                if (nothingToBench) {
+                    MessageBox.Show(International.GetText("FormBenchmark_Nothing_to_Benchmark_Msg"),
+                        International.GetText("FormBenchmark_Nothing_to_Benchmark_Title"),
+                        MessageBoxButtons.OK);
+                    return false;
+                }
+            }
 
-                foreach (ListViewItem lvi in listView1.Items)
-                {
-                    Miner m = lvi.Tag as Miner;
-                    int i = (int)lvi.SubItems[2].Tag;
-                    lvi.SubItems[3].Text = m.PrintSpeed(m.SupportedAlgorithms[i].BenchmarkSpeed);
+            // current failed new list
+            _benchmarkFailedAlgoPerDev = new List<DeviceAlgo>();
+            // disable gui controls
+            //groupBoxAlgorithmBenchmarkSettings.Enabled = false;
+            benchmarkOptions1.Enabled = false;
+            // TODO make scrolable but not checkable
+            //devicesListViewEnableControl1.Enabled = false;
+            CloseBtn.Enabled = false;
+            algorithmsListView1.IsInBenchmark = true;
+            devicesListViewEnableControl1.IsInBenchmark = true;
+            // set benchmark pending status
+            foreach (var deviceAlgosTuple in _benchmarkDevicesAlgorithmQueue) {
+                foreach (var algo in deviceAlgosTuple.Item2) {
+                    algo.SetBenchmarkPending();
+                }
+            }
+            if (_currentDevice != null) {
+                algorithmsListView1.RepaintStatus(_currentDevice.ComputeDeviceEnabledOption.IsEnabled, _currentDevice.UUID);
+            }
+
+            StartBenchmark();
+
+            return true;
+        }
+
+        public void CalcBenchmarkDevicesAlgorithmQueue() {
+
+            _benchmarkAlgorithmsCount = 0;
+            _benchmarkDevicesAlgorithmStatus = new Dictionary<string, BenchmarkSettingsStatus>();
+            _benchmarkDevicesAlgorithmQueue = new List<Tuple<ComputeDevice, Queue<Algorithm>>>();
+            foreach (var option in devicesListViewEnableControl1.Options) {
+                var algorithmQueue = new Queue<Algorithm>();
+                if (_singleBenchmarkType == AlgorithmType.NONE) {
+                    foreach (var kvpAlgorithm in option.CDevice.DeviceBenchmarkConfig.AlgorithmSettings) {
+                        if (ShoulBenchmark(kvpAlgorithm.Value)) {
+                            algorithmQueue.Enqueue(kvpAlgorithm.Value);
+                            kvpAlgorithm.Value.SetBenchmarkPendingNoMsg();
+                        } else {
+                            kvpAlgorithm.Value.ClearBenchmarkPending();
+                        }
+                    }
+                } else { // single bench
+                    var algo = option.CDevice.DeviceBenchmarkConfig.AlgorithmSettings[_singleBenchmarkType];
+                    algorithmQueue.Enqueue(algo);
                 }
                 
-                Config.RebuildGroups();
 
-                buttonStartBenchmark.Enabled = true;
-                buttonStopBenchmark.Enabled = false;
-                buttonReset.Enabled = true;
-                buttonClose.Enabled = true;
-                buttonCheckProfitability.Enabled = true;
-                buttonSubmitHardware.Enabled = true;
+                BenchmarkSettingsStatus status;
+                if (option.IsEnabled) {
+                    _benchmarkAlgorithmsCount += algorithmQueue.Count;
+                    status = algorithmQueue.Count == 0 ? BenchmarkSettingsStatus.NONE : BenchmarkSettingsStatus.TODO;
+                    _benchmarkDevicesAlgorithmQueue.Add(
+                    new Tuple<ComputeDevice, Queue<Algorithm>>(option.CDevice, algorithmQueue)
+                    );
+                } else {
+                    status = algorithmQueue.Count == 0 ? BenchmarkSettingsStatus.DISABLED_NONE : BenchmarkSettingsStatus.DISABLED_TODO;
+                }
+                _benchmarkDevicesAlgorithmStatus.Add(option.CDevice.UUID, status);
             }
+            // GUI stuff
+            progressBarBenchmarkSteps.Maximum = _benchmarkAlgorithmsCount;
+            progressBarBenchmarkSteps.Value = 0;
+            SetLabelBenchmarkSteps(0, _benchmarkAlgorithmsCount);
         }
 
-        private void Form2_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (inBenchmark) e.Cancel = true;
+        private bool ShoulBenchmark(Algorithm algorithm) {
+            bool isBenchmarked = algorithm.BenchmarkSpeed > 0 ? true : false;
+            if (_algorithmOption == AlgorithmBenchmarkSettingsType.SelectedUnbenchmarkedAlgorithms
+                && !isBenchmarked && !algorithm.Skip) {
+                    return true;
+            }
+            if (_algorithmOption == AlgorithmBenchmarkSettingsType.UnbenchmarkedAlgorithms && !isBenchmarked) {
+                return true;
+            }
+            if (_algorithmOption == AlgorithmBenchmarkSettingsType.ReBecnhSelectedAlgorithms && !algorithm.Skip) {
+                return true;
+            }
+            if (_algorithmOption == AlgorithmBenchmarkSettingsType.AllAlgorithms) {
+                return true;
+            }
+
+            return false;
         }
 
-        private void radioButton1_CheckedChanged(object sender, EventArgs e)
-        {
-            TimeIndex = 0;
+        void StartBenchmark() {
+            _inBenchmark = true;
+            _bechmarkCurrentIndex = -1;
+            NextBenchmark();
         }
 
-        private void radioButton2_CheckedChanged(object sender, EventArgs e)
-        {
-            TimeIndex = 1;
-        }
+        void NextBenchmark() {
+            if (_bechmarkCurrentIndex > -1) {
+                StepUpBenchmarkStepProgress();
+            } 
+            ++_bechmarkCurrentIndex;
+            if (_bechmarkCurrentIndex >= _benchmarkAlgorithmsCount) {
+                EndBenchmark();
+                return;
+            }
 
-        private void radioButton3_CheckedChanged(object sender, EventArgs e)
-        {
-            TimeIndex = 2;
-        }
-
-        private void buttonStartBenchmark_Click(object sender, EventArgs e)
-        {
-            index = 0;
-            buttonStartBenchmark.Enabled = false;
-            buttonStopBenchmark.Enabled = true;
-            buttonReset.Enabled = false;
-            buttonClose.Enabled = false;
-            buttonCheckProfitability.Enabled = false;
-            buttonSubmitHardware.Enabled = false;
-            InitiateBenchmark();
-        }
-
-        private void buttonStopBenchmark_Click(object sender, EventArgs e)
-        {
-            if (CurrentlyBenchmarking != null)
-                CurrentlyBenchmarking.BenchmarkSignalQuit = true;
-            index = 9999;
-        }
-
-        private void buttonReset_Click(object sender, EventArgs e)
-        {
-            foreach (Miner m in Globals.Miners)
-            {
-                for (int i = 0; i < m.SupportedAlgorithms.Length; i++)
-                {
-                    m.SupportedAlgorithms[i].BenchmarkSpeed = 0;
+            Tuple<ComputeDevice, Queue<Algorithm>> currentDeviceAlgosTuple;
+            Queue<Algorithm> algorithmBenchmarkQueue;
+            while (_benchmarkDevicesAlgorithmQueue.Count > 0) {
+                currentDeviceAlgosTuple = _benchmarkDevicesAlgorithmQueue[0];
+                _currentDevice = currentDeviceAlgosTuple.Item1;
+                algorithmBenchmarkQueue = currentDeviceAlgosTuple.Item2;
+                if(algorithmBenchmarkQueue.Count != 0) {
+                    _currentAlgorithm = algorithmBenchmarkQueue.Dequeue();
+                    break;
+                } else {
+                    _benchmarkDevicesAlgorithmQueue.RemoveAt(0);
                 }
             }
 
-            Config.RebuildGroups();
-
-            foreach (ListViewItem lvi in listView1.Items)
-            {
-                lvi.SubItems[3].Text = "";
+            var currentConfig = _currentDevice.DeviceBenchmarkConfig;
+            if (_currentDevice.DeviceGroupType == DeviceGroupType.CPU) {
+                _currentMiner = MinersManager.GetCpuMiner(_currentDevice.Group);
+            } else {
+                _currentMiner = MinersManager.CreateMiner(currentConfig.DeviceGroupType, _currentAlgorithm.NiceHashID);
             }
+
+            if (_currentMiner != null && _currentAlgorithm != null) {
+                _benchmarkMiners.Add(_currentMiner);
+                CurrentAlgoName = AlgorithmNiceHashNames.GetName(_currentAlgorithm.NiceHashID);
+                // this has no effect for CPU miners
+                _currentMiner.SetCDevs(new string[] { _currentDevice.UUID });
+
+                var time = ConfigManager.Instance.GeneralConfig.BenchmarkTimeLimits
+                    .GetBenchamrktime(benchmarkOptions1.PerformanceType, _currentDevice.DeviceGroupType);
+                //currentConfig.TimeLimit = time;
+                
+                // dagger about 4 minutes
+                var showWaitTime = _currentAlgorithm.NiceHashID == AlgorithmType.DaggerHashimoto ? 4 * 60 : time;
+
+                dotCount = 0;
+                _benchmarkingTimer.Start();
+
+                _currentMiner.BenchmarkStart(_currentDevice, _currentAlgorithm, time, this);
+                algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID,
+                    getDotsWaitString());
+            } else {
+                NextBenchmark();
+            }
+
         }
 
-        private void listView1_ItemChecked(object sender, ItemCheckedEventArgs e)
-        {
-            Miner m = e.Item.Tag as Miner;
-            if (m.EnabledDeviceCount() == 0)
-                e.Item.Checked = false;
-            else
-            {
-                int i = (int)e.Item.SubItems[2].Tag;
-                m.SupportedAlgorithms[i].Skip = !e.Item.Checked;
-                Config.RebuildGroups();
-            }
-        }
+        void EndBenchmark() {
+            _benchmarkingTimer.Stop();
+            _inBenchmark = false;
+            Helpers.ConsolePrint("FormBenchmark", "EndBenchmark() benchmark routine finished");
 
-        private void buttonSubmitHardware_Click(object sender, EventArgs e)
-        {
-            Form SubmitResultDialog = new SubmitResultDialog(TimeIndex);
-            SubmitResultDialog.ShowDialog();
-            SubmitResultDialog = null;
+            CopyBenchmarks();
 
-            for (int i = 0; i < Globals.Miners.Length; i++)
-            {
-                for (int j = 0; j < Globals.Miners[i].CDevs.Count; j++)
-                {
-                    Globals.Miners[i].CDevs[j].Enabled = true;
-                    for (int k = 0; k < Config.ConfigData.Groups[i].DisabledDevices.Length; k++)
-                    {
-                        if (Config.ConfigData.Groups[i].DisabledDevices[k] == j)
-                            Globals.Miners[i].CDevs[j].Enabled = false;
+            BenchmarkStoppedGUISettings();
+            // check if all ok
+            if(_benchmarkFailedAlgoPerDev.Count == 0) {
+                MessageBox.Show(
+                    International.GetText("FormBenchmark_Benchmark_Finish_Succes_MsgBox_Msg"),
+                    International.GetText("FormBenchmark_Benchmark_Finish_MsgBox_Title"),
+                    MessageBoxButtons.OK);
+            } else {
+                var result = MessageBox.Show(
+                    International.GetText("FormBenchmark_Benchmark_Finish_Fail_MsgBox_Msg"),
+                    International.GetText("FormBenchmark_Benchmark_Finish_MsgBox_Title"),
+                    MessageBoxButtons.RetryCancel);
+
+                if (result == System.Windows.Forms.DialogResult.Retry) {
+                    StartButonClick();
+                    return;
+                } else /*Cancel*/ {
+                    // get unbenchmarked from criteria and disable
+                    CalcBenchmarkDevicesAlgorithmQueue();
+                    foreach (var deviceAlgoQueue in _benchmarkDevicesAlgorithmQueue) {
+                        foreach (var algorithm in deviceAlgoQueue.Item2) {
+                            algorithm.Skip = true;
+                        }
                     }
                 }
             }
+            if (ExitWhenFinished) {
+                this.Close();
+            }
         }
 
-        private void buttonCheckProfitability_Click(object sender, EventArgs e)
-        {
-            string url = "https://www.nicehash.com/?p=calc&name=CUSTOM";
-            int len = Globals.NiceHashData == null ? 23 : Globals.NiceHashData.Length;
-            double[] total = new double[len];
 
-            for (int i = 0; i < len; i++)
-                total[i] = 0;
+        public void SetCurrentStatus(string status) {
+            this.Invoke((MethodInvoker)delegate {
+                //algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID, status);
+                algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID, getDotsWaitString());
+            });
+        }
 
-            for (int i = 0; i < Globals.Miners.Length; i++)
-            {
-                if (Globals.Miners[i].EnabledDeviceCount() < 1) continue;
-                for (int j = 0; j < Globals.Miners[i].SupportedAlgorithms.Length; j++)
-                {
-                    total[Globals.Miners[i].SupportedAlgorithms[j].NiceHashID] += Globals.Miners[i].SupportedAlgorithms[j].BenchmarkSpeed;
+        public void OnBenchmarkComplete(bool success, string status) {
+            if (!_inBenchmark) return;
+            this.Invoke((MethodInvoker)delegate {
+                _bechmarkedSuccessCount += success ? 1 : 0;
+                _benchmarkingTimer.Stop();
+                if (!success) {
+                    // add new failed list
+                    _benchmarkFailedAlgoPerDev.Add(
+                        new DeviceAlgo() {
+                            Device = _currentDevice.Name,
+                            Algorithm = _currentAlgorithm.NiceHashName
+                        } );
+                    algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID, status);
+                } else {
+                    // set status to empty string it will return speed
+                    _currentAlgorithm.ClearBenchmarkPending();
+                    algorithmsListView1.SetSpeedStatus(_currentDevice, _currentAlgorithm.NiceHashID, "");
+                }
+                NextBenchmark();
+            });
+        }
+
+        #region Benchmark progress GUI stuff
+
+        private void SetLabelBenchmarkSteps(int current, int max) {
+            labelBenchmarkSteps.Text = String.Format(International.GetText("FormBenchmark_Benchmark_Step"), current, max);
+        }
+
+        private void StepUpBenchmarkStepProgress() {
+            SetLabelBenchmarkSteps(_bechmarkCurrentIndex + 1, _benchmarkAlgorithmsCount);
+            progressBarBenchmarkSteps.Value = _bechmarkCurrentIndex + 1;
+        }
+
+        private void ResetBenchmarkProgressStatus() {
+            progressBarBenchmarkSteps.Value = 0;
+        }
+
+        #endregion // Benchmark progress GUI stuff
+
+        private void CloseBtn_Click(object sender, EventArgs e) {
+            this.Close();
+        }
+
+        //private void radioButton_SelectedUnbenchmarked_CheckedChanged(object sender, EventArgs e) {
+        //    _algorithmOption = AlgorithmBenchmarkSettingsType.SelectedUnbenchmarkedAlgorithms;
+        //    CalcBenchmarkDevicesAlgorithmQueue();
+        //    devicesListViewEnableControl1.ResetListItemColors();
+        //}
+
+        //private void radioButton_Unbenchmarked_CheckedChanged(object sender, EventArgs e) {
+        //    _algorithmOption = AlgorithmBenchmarkSettingsType.UnbenchmarkedAlgorithms;
+        //    CalcBenchmarkDevicesAlgorithmQueue();
+        //    devicesListViewEnableControl1.ResetListItemColors();
+        //}
+
+        //private void radioButton_ReOnlySelected_CheckedChanged(object sender, EventArgs e) {
+        //    _algorithmOption = AlgorithmBenchmarkSettingsType.ReBecnhSelectedAlgorithms;
+        //    CalcBenchmarkDevicesAlgorithmQueue();
+        //    devicesListViewEnableControl1.ResetListItemColors();
+        //}
+
+        //private void radioButton_All_CheckedChanged(object sender, EventArgs e) {
+        //    _algorithmOption = AlgorithmBenchmarkSettingsType.AllAlgorithms;
+        //    CalcBenchmarkDevicesAlgorithmQueue();
+        //    devicesListViewEnableControl1.ResetListItemColors();
+        //}
+
+        private void FormBenchmark_New_FormClosing(object sender, FormClosingEventArgs e) {
+            if (_inBenchmark) {
+                e.Cancel = true;
+                return;
+            }
+
+            // disable all pending benchmark
+            foreach (var cDev in ComputeDevice.AllAvaliableDevices) {
+                foreach (var algorithm in cDev.DeviceBenchmarkConfig.AlgorithmSettings.Values) {
+                    algorithm.ClearBenchmarkPending();
                 }
             }
 
-            for (int i = 0; i < len; i++)
-                url += "&speed" + i + "=" + (total[i] / SubmitResultDialog.div[i]).ToString("F2", CultureInfo.InvariantCulture);
-
-            System.Diagnostics.Process.Start(url);
+            // save already benchmarked algorithms
+            ConfigManager.Instance.CommitBenchmarks();
+            // check devices without benchmarks
+            foreach (var cdev in ComputeDevice.AllAvaliableDevices) {
+                bool Enabled = false;
+                foreach (var algo in cdev.DeviceBenchmarkConfig.AlgorithmSettings) {
+                    if (algo.Value.BenchmarkSpeed > 0) {
+                        Enabled = true;
+                        break;
+                    }
+                }
+                cdev.ComputeDeviceEnabledOption.IsEnabled = Enabled;
+            }
+            devicesListViewEnableControl1.SaveOptions();
         }
 
-        private void buttonClose_Click(object sender, EventArgs e)
-        {
-            this.Close();
+        private void devicesListView1_ItemSelectionChanged(object sender, ListViewItemSelectionChangedEventArgs e) {
+
+            //algorithmSettingsControl1.Deselect();
+            // show algorithms
+            var _selectedComputeDevice = ComputeDevice.GetCurrentlySelectedComputeDevice(e.ItemIndex, true);
+            algorithmsListView1.SetAlgorithms(_selectedComputeDevice, _selectedComputeDevice.ComputeDeviceEnabledOption.IsEnabled);
+            //groupBoxAlgorithmSettings.Text = String.Format("Algorithm settings for {0} :", _selectedComputeDevice.Name);
         }
+
+        private void radioButton_SelectedUnbenchmarked_CheckedChanged_1(object sender, EventArgs e) {
+            _algorithmOption = AlgorithmBenchmarkSettingsType.SelectedUnbenchmarkedAlgorithms;
+            CalcBenchmarkDevicesAlgorithmQueue();
+            devicesListViewEnableControl1.ResetListItemColors();
+            algorithmsListView1.ResetListItemColors();
+        }
+
+        private void radioButton_RE_SelectedUnbenchmarked_CheckedChanged(object sender, EventArgs e) {
+            _algorithmOption = AlgorithmBenchmarkSettingsType.ReBecnhSelectedAlgorithms;
+            CalcBenchmarkDevicesAlgorithmQueue();
+            devicesListViewEnableControl1.ResetListItemColors();
+            algorithmsListView1.ResetListItemColors();
+        }
+
     }
 }

@@ -50,43 +50,19 @@
             this.labelWorkerName = new System.Windows.Forms.Label();
             this.textBoxWorkerName = new System.Windows.Forms.TextBox();
             this.linkLabelVisitUs = new System.Windows.Forms.LinkLabel();
-            this.listViewDevices = new System.Windows.Forms.ListView();
-            this.columnHeader0 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.columnHeader2 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.buttonStopMining = new System.Windows.Forms.Button();
-            this.label3 = new System.Windows.Forms.Label();
-            this.labelCPU_Mining_Speed = new System.Windows.Forms.Label();
-            this.labelNVIDIA5X_Mining_Speed = new System.Windows.Forms.Label();
-            this.label7 = new System.Windows.Forms.Label();
-            this.labelNVIDIA3X_Mining_Speed = new System.Windows.Forms.Label();
-            this.label9 = new System.Windows.Forms.Label();
-            this.label_RateCPU = new System.Windows.Forms.Label();
-            this.label_RateCPUBTC = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA5XBTC = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA5X = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA3XBTC = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA3X = new System.Windows.Forms.Label();
             this.buttonBenchmark = new System.Windows.Forms.Button();
-            this.label_RateCPUDollar = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA5XDollar = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA3XDollar = new System.Windows.Forms.Label();
             this.buttonSettings = new System.Windows.Forms.Button();
-            this.label_AMDOpenCL_Mining_Text = new System.Windows.Forms.Label();
-            this.labelAMDOpenCL_Mining_Speed = new System.Windows.Forms.Label();
-            this.label_RateAMD = new System.Windows.Forms.Label();
-            this.label_RateAMDBTC = new System.Windows.Forms.Label();
-            this.label_RateAMDDollar = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA2XDollar = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA2XBTC = new System.Windows.Forms.Label();
-            this.label_RateNVIDIA2X = new System.Windows.Forms.Label();
-            this.labelNVIDIA2X_Mining_Speed = new System.Windows.Forms.Label();
-            this.label23 = new System.Windows.Forms.Label();
             this.buttonHelp = new System.Windows.Forms.Button();
             this.linkLabelChooseBTCWallet = new System.Windows.Forms.LinkLabel();
             this.notifyIcon1 = new System.Windows.Forms.NotifyIcon(this.components);
             this.labelDemoMode = new System.Windows.Forms.Label();
+            this.flowLayoutPanelRates = new System.Windows.Forms.FlowLayoutPanel();
+            this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.label_NotProfitable = new System.Windows.Forms.Label();
+            this.devicesListViewEnableControl1 = new NiceHashMiner.Forms.Components.DevicesListViewEnableControl();
             this.statusStrip1.SuspendLayout();
+            this.groupBox1.SuspendLayout();
             this.SuspendLayout();
             // 
             // buttonStartMining
@@ -153,7 +129,7 @@
             this.toolStripStatusLabelBalanceDollarText,
             this.toolStripStatusLabelBalanceDollarValue,
             this.toolStripStatusLabel10});
-            this.statusStrip1.Location = new System.Drawing.Point(0, 267);
+            this.statusStrip1.Location = new System.Drawing.Point(0, 345);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Size = new System.Drawing.Size(565, 25);
             this.statusStrip1.TabIndex = 8;
@@ -266,38 +242,6 @@
             this.linkLabelVisitUs.Text = "Visit us @ www.nicehash.com";
             this.linkLabelVisitUs.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.linkLabelVisitUs_LinkClicked);
             // 
-            // listViewDevices
-            // 
-            this.listViewDevices.CheckBoxes = true;
-            this.listViewDevices.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
-            this.columnHeader0,
-            this.columnHeader2,
-            this.columnHeader3});
-            this.listViewDevices.FullRowSelect = true;
-            this.listViewDevices.GridLines = true;
-            this.listViewDevices.Location = new System.Drawing.Point(11, 91);
-            this.listViewDevices.Name = "listViewDevices";
-            this.listViewDevices.Size = new System.Drawing.Size(427, 105);
-            this.listViewDevices.TabIndex = 3;
-            this.listViewDevices.UseCompatibleStateImageBehavior = false;
-            this.listViewDevices.View = System.Windows.Forms.View.Details;
-            this.listViewDevices.ItemChecked += new System.Windows.Forms.ItemCheckedEventHandler(this.listView1_ItemChecked);
-            // 
-            // columnHeader0
-            // 
-            this.columnHeader0.Text = "Enabled";
-            this.columnHeader0.Width = 63;
-            // 
-            // columnHeader2
-            // 
-            this.columnHeader2.Text = "Group";
-            this.columnHeader2.Width = 97;
-            // 
-            // columnHeader3
-            // 
-            this.columnHeader3.Text = "Device";
-            this.columnHeader3.Width = 245;
-            // 
             // buttonStopMining
             // 
             this.buttonStopMining.Enabled = false;
@@ -309,120 +253,6 @@
             this.buttonStopMining.UseVisualStyleBackColor = true;
             this.buttonStopMining.Click += new System.EventHandler(this.buttonStopMining_Click);
             // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(8, 199);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(66, 13);
-            this.label3.TabIndex = 99;
-            this.label3.Text = "CPU Mining:";
-            // 
-            // labelCPU_Mining_Speed
-            // 
-            this.labelCPU_Mining_Speed.AutoSize = true;
-            this.labelCPU_Mining_Speed.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.labelCPU_Mining_Speed.Location = new System.Drawing.Point(126, 199);
-            this.labelCPU_Mining_Speed.Name = "labelCPU_Mining_Speed";
-            this.labelCPU_Mining_Speed.Size = new System.Drawing.Size(71, 13);
-            this.labelCPU_Mining_Speed.TabIndex = 99;
-            this.labelCPU_Mining_Speed.Text = "0.000 kH/s";
-            // 
-            // labelNVIDIA5X_Mining_Speed
-            // 
-            this.labelNVIDIA5X_Mining_Speed.AutoSize = true;
-            this.labelNVIDIA5X_Mining_Speed.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.labelNVIDIA5X_Mining_Speed.Location = new System.Drawing.Point(126, 212);
-            this.labelNVIDIA5X_Mining_Speed.Name = "labelNVIDIA5X_Mining_Speed";
-            this.labelNVIDIA5X_Mining_Speed.Size = new System.Drawing.Size(74, 13);
-            this.labelNVIDIA5X_Mining_Speed.TabIndex = 99;
-            this.labelNVIDIA5X_Mining_Speed.Text = "0.000 MH/s";
-            // 
-            // label7
-            // 
-            this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(8, 212);
-            this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(123, 13);
-            this.label7.TabIndex = 99;
-            this.label7.Text = "GPU NVIDIA5/6 Mining:";
-            // 
-            // labelNVIDIA3X_Mining_Speed
-            // 
-            this.labelNVIDIA3X_Mining_Speed.AutoSize = true;
-            this.labelNVIDIA3X_Mining_Speed.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.labelNVIDIA3X_Mining_Speed.Location = new System.Drawing.Point(126, 225);
-            this.labelNVIDIA3X_Mining_Speed.Name = "labelNVIDIA3X_Mining_Speed";
-            this.labelNVIDIA3X_Mining_Speed.Size = new System.Drawing.Size(74, 13);
-            this.labelNVIDIA3X_Mining_Speed.TabIndex = 99;
-            this.labelNVIDIA3X_Mining_Speed.Text = "0.000 MH/s";
-            // 
-            // label9
-            // 
-            this.label9.AutoSize = true;
-            this.label9.Location = new System.Drawing.Point(8, 225);
-            this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(120, 13);
-            this.label9.TabIndex = 99;
-            this.label9.Text = "GPU NVIDIA3.x Mining:";
-            // 
-            // label_RateCPU
-            // 
-            this.label_RateCPU.AutoSize = true;
-            this.label_RateCPU.Location = new System.Drawing.Point(305, 199);
-            this.label_RateCPU.Name = "label_RateCPU";
-            this.label_RateCPU.Size = new System.Drawing.Size(33, 13);
-            this.label_RateCPU.TabIndex = 99;
-            this.label_RateCPU.Text = "Rate:";
-            // 
-            // label_RateCPUBTC
-            // 
-            this.label_RateCPUBTC.AutoSize = true;
-            this.label_RateCPUBTC.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.label_RateCPUBTC.Location = new System.Drawing.Point(346, 199);
-            this.label_RateCPUBTC.Name = "label_RateCPUBTC";
-            this.label_RateCPUBTC.Size = new System.Drawing.Size(112, 13);
-            this.label_RateCPUBTC.TabIndex = 99;
-            this.label_RateCPUBTC.Text = "0.00000000 BTC/Day";
-            // 
-            // label_RateNVIDIA5XBTC
-            // 
-            this.label_RateNVIDIA5XBTC.AutoSize = true;
-            this.label_RateNVIDIA5XBTC.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.label_RateNVIDIA5XBTC.Location = new System.Drawing.Point(346, 212);
-            this.label_RateNVIDIA5XBTC.Name = "label_RateNVIDIA5XBTC";
-            this.label_RateNVIDIA5XBTC.Size = new System.Drawing.Size(112, 13);
-            this.label_RateNVIDIA5XBTC.TabIndex = 99;
-            this.label_RateNVIDIA5XBTC.Text = "0.00000000 BTC/Day";
-            // 
-            // label_RateNVIDIA5X
-            // 
-            this.label_RateNVIDIA5X.AutoSize = true;
-            this.label_RateNVIDIA5X.Location = new System.Drawing.Point(305, 212);
-            this.label_RateNVIDIA5X.Name = "label_RateNVIDIA5X";
-            this.label_RateNVIDIA5X.Size = new System.Drawing.Size(33, 13);
-            this.label_RateNVIDIA5X.TabIndex = 99;
-            this.label_RateNVIDIA5X.Text = "Rate:";
-            // 
-            // label_RateNVIDIA3XBTC
-            // 
-            this.label_RateNVIDIA3XBTC.AutoSize = true;
-            this.label_RateNVIDIA3XBTC.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.label_RateNVIDIA3XBTC.Location = new System.Drawing.Point(346, 225);
-            this.label_RateNVIDIA3XBTC.Name = "label_RateNVIDIA3XBTC";
-            this.label_RateNVIDIA3XBTC.Size = new System.Drawing.Size(112, 13);
-            this.label_RateNVIDIA3XBTC.TabIndex = 99;
-            this.label_RateNVIDIA3XBTC.Text = "0.00000000 BTC/Day";
-            // 
-            // label_RateNVIDIA3X
-            // 
-            this.label_RateNVIDIA3X.AutoSize = true;
-            this.label_RateNVIDIA3X.Location = new System.Drawing.Point(305, 225);
-            this.label_RateNVIDIA3X.Name = "label_RateNVIDIA3X";
-            this.label_RateNVIDIA3X.Size = new System.Drawing.Size(33, 13);
-            this.label_RateNVIDIA3X.TabIndex = 99;
-            this.label_RateNVIDIA3X.Text = "Rate:";
-            // 
             // buttonBenchmark
             // 
             this.buttonBenchmark.Location = new System.Drawing.Point(452, 91);
@@ -433,33 +263,6 @@
             this.buttonBenchmark.UseVisualStyleBackColor = true;
             this.buttonBenchmark.Click += new System.EventHandler(this.buttonBenchmark_Click);
             // 
-            // label_RateCPUDollar
-            // 
-            this.label_RateCPUDollar.AutoSize = true;
-            this.label_RateCPUDollar.Location = new System.Drawing.Point(468, 199);
-            this.label_RateCPUDollar.Name = "label_RateCPUDollar";
-            this.label_RateCPUDollar.Size = new System.Drawing.Size(61, 13);
-            this.label_RateCPUDollar.TabIndex = 99;
-            this.label_RateCPUDollar.Text = "0.00 $/Day";
-            // 
-            // label_RateNVIDIA5XDollar
-            // 
-            this.label_RateNVIDIA5XDollar.AutoSize = true;
-            this.label_RateNVIDIA5XDollar.Location = new System.Drawing.Point(468, 212);
-            this.label_RateNVIDIA5XDollar.Name = "label_RateNVIDIA5XDollar";
-            this.label_RateNVIDIA5XDollar.Size = new System.Drawing.Size(61, 13);
-            this.label_RateNVIDIA5XDollar.TabIndex = 99;
-            this.label_RateNVIDIA5XDollar.Text = "0.00 $/Day";
-            // 
-            // label_RateNVIDIA3XDollar
-            // 
-            this.label_RateNVIDIA3XDollar.AutoSize = true;
-            this.label_RateNVIDIA3XDollar.Location = new System.Drawing.Point(468, 225);
-            this.label_RateNVIDIA3XDollar.Name = "label_RateNVIDIA3XDollar";
-            this.label_RateNVIDIA3XDollar.Size = new System.Drawing.Size(61, 13);
-            this.label_RateNVIDIA3XDollar.TabIndex = 99;
-            this.label_RateNVIDIA3XDollar.Text = "0.00 $/Day";
-            // 
             // buttonSettings
             // 
             this.buttonSettings.Location = new System.Drawing.Point(452, 117);
@@ -469,100 +272,6 @@
             this.buttonSettings.Text = "S&ettings";
             this.buttonSettings.UseVisualStyleBackColor = true;
             this.buttonSettings.Click += new System.EventHandler(this.buttonSettings_Click);
-            // 
-            // label_AMDOpenCL_Mining_Text
-            // 
-            this.label_AMDOpenCL_Mining_Text.AutoSize = true;
-            this.label_AMDOpenCL_Mining_Text.Location = new System.Drawing.Point(8, 251);
-            this.label_AMDOpenCL_Mining_Text.Name = "label_AMDOpenCL_Mining_Text";
-            this.label_AMDOpenCL_Mining_Text.Size = new System.Drawing.Size(110, 13);
-            this.label_AMDOpenCL_Mining_Text.TabIndex = 99;
-            this.label_AMDOpenCL_Mining_Text.Text = "AMD OpenCL Mining:";
-            // 
-            // labelAMDOpenCL_Mining_Speed
-            // 
-            this.labelAMDOpenCL_Mining_Speed.AutoSize = true;
-            this.labelAMDOpenCL_Mining_Speed.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.labelAMDOpenCL_Mining_Speed.Location = new System.Drawing.Point(126, 251);
-            this.labelAMDOpenCL_Mining_Speed.Name = "labelAMDOpenCL_Mining_Speed";
-            this.labelAMDOpenCL_Mining_Speed.Size = new System.Drawing.Size(74, 13);
-            this.labelAMDOpenCL_Mining_Speed.TabIndex = 99;
-            this.labelAMDOpenCL_Mining_Speed.Text = "0.000 MH/s";
-            // 
-            // label_RateAMD
-            // 
-            this.label_RateAMD.AutoSize = true;
-            this.label_RateAMD.Location = new System.Drawing.Point(305, 251);
-            this.label_RateAMD.Name = "label_RateAMD";
-            this.label_RateAMD.Size = new System.Drawing.Size(33, 13);
-            this.label_RateAMD.TabIndex = 99;
-            this.label_RateAMD.Text = "Rate:";
-            // 
-            // label_RateAMDBTC
-            // 
-            this.label_RateAMDBTC.AutoSize = true;
-            this.label_RateAMDBTC.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.label_RateAMDBTC.Location = new System.Drawing.Point(346, 251);
-            this.label_RateAMDBTC.Name = "label_RateAMDBTC";
-            this.label_RateAMDBTC.Size = new System.Drawing.Size(112, 13);
-            this.label_RateAMDBTC.TabIndex = 99;
-            this.label_RateAMDBTC.Text = "0.00000000 BTC/Day";
-            // 
-            // label_RateAMDDollar
-            // 
-            this.label_RateAMDDollar.AutoSize = true;
-            this.label_RateAMDDollar.Location = new System.Drawing.Point(468, 251);
-            this.label_RateAMDDollar.Name = "label_RateAMDDollar";
-            this.label_RateAMDDollar.Size = new System.Drawing.Size(61, 13);
-            this.label_RateAMDDollar.TabIndex = 99;
-            this.label_RateAMDDollar.Text = "0.00 $/Day";
-            // 
-            // label_RateNVIDIA2XDollar
-            // 
-            this.label_RateNVIDIA2XDollar.AutoSize = true;
-            this.label_RateNVIDIA2XDollar.Location = new System.Drawing.Point(468, 238);
-            this.label_RateNVIDIA2XDollar.Name = "label_RateNVIDIA2XDollar";
-            this.label_RateNVIDIA2XDollar.Size = new System.Drawing.Size(61, 13);
-            this.label_RateNVIDIA2XDollar.TabIndex = 99;
-            this.label_RateNVIDIA2XDollar.Text = "0.00 $/Day";
-            // 
-            // label_RateNVIDIA2XBTC
-            // 
-            this.label_RateNVIDIA2XBTC.AutoSize = true;
-            this.label_RateNVIDIA2XBTC.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.label_RateNVIDIA2XBTC.Location = new System.Drawing.Point(346, 238);
-            this.label_RateNVIDIA2XBTC.Name = "label_RateNVIDIA2XBTC";
-            this.label_RateNVIDIA2XBTC.Size = new System.Drawing.Size(112, 13);
-            this.label_RateNVIDIA2XBTC.TabIndex = 99;
-            this.label_RateNVIDIA2XBTC.Text = "0.00000000 BTC/Day";
-            // 
-            // label_RateNVIDIA2X
-            // 
-            this.label_RateNVIDIA2X.AutoSize = true;
-            this.label_RateNVIDIA2X.Location = new System.Drawing.Point(305, 238);
-            this.label_RateNVIDIA2X.Name = "label_RateNVIDIA2X";
-            this.label_RateNVIDIA2X.Size = new System.Drawing.Size(33, 13);
-            this.label_RateNVIDIA2X.TabIndex = 99;
-            this.label_RateNVIDIA2X.Text = "Rate:";
-            // 
-            // labelNVIDIA2X_Mining_Speed
-            // 
-            this.labelNVIDIA2X_Mining_Speed.AutoSize = true;
-            this.labelNVIDIA2X_Mining_Speed.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
-            this.labelNVIDIA2X_Mining_Speed.Location = new System.Drawing.Point(126, 238);
-            this.labelNVIDIA2X_Mining_Speed.Name = "labelNVIDIA2X_Mining_Speed";
-            this.labelNVIDIA2X_Mining_Speed.Size = new System.Drawing.Size(74, 13);
-            this.labelNVIDIA2X_Mining_Speed.TabIndex = 99;
-            this.labelNVIDIA2X_Mining_Speed.Text = "0.000 MH/s";
-            // 
-            // label23
-            // 
-            this.label23.AutoSize = true;
-            this.label23.Location = new System.Drawing.Point(8, 238);
-            this.label23.Name = "label23";
-            this.label23.Size = new System.Drawing.Size(121, 13);
-            this.label23.TabIndex = 99;
-            this.label23.Text = "GPU NVIDIA2.1 Mining:";
             // 
             // buttonHelp
             // 
@@ -607,43 +316,65 @@
             this.labelDemoMode.Text = "NiceHash Miner is running in DEMO mode!";
             this.labelDemoMode.Visible = false;
             // 
+            // flowLayoutPanelRates
+            // 
+            this.flowLayoutPanelRates.AutoScroll = true;
+            this.flowLayoutPanelRates.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.flowLayoutPanelRates.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
+            this.flowLayoutPanelRates.Location = new System.Drawing.Point(3, 16);
+            this.flowLayoutPanelRates.Name = "flowLayoutPanelRates";
+            this.flowLayoutPanelRates.Size = new System.Drawing.Size(536, 123);
+            this.flowLayoutPanelRates.TabIndex = 107;
+            this.flowLayoutPanelRates.WrapContents = false;
+            // 
+            // groupBox1
+            // 
+            this.groupBox1.Controls.Add(this.label_NotProfitable);
+            this.groupBox1.Controls.Add(this.flowLayoutPanelRates);
+            this.groupBox1.Location = new System.Drawing.Point(11, 202);
+            this.groupBox1.Name = "groupBox1";
+            this.groupBox1.Size = new System.Drawing.Size(542, 142);
+            this.groupBox1.TabIndex = 108;
+            this.groupBox1.TabStop = false;
+            this.groupBox1.Text = "Group/Device Rates:";
+            // 
+            // label_NotProfitable
+            // 
+            this.label_NotProfitable.AutoSize = true;
+            this.label_NotProfitable.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(238)));
+            this.label_NotProfitable.ForeColor = System.Drawing.Color.Red;
+            this.label_NotProfitable.Location = new System.Drawing.Point(6, 0);
+            this.label_NotProfitable.Name = "label_NotProfitable";
+            this.label_NotProfitable.Size = new System.Drawing.Size(366, 24);
+            this.label_NotProfitable.TabIndex = 110;
+            this.label_NotProfitable.Text = "CURRENTLY MINING NOT PROFITABLE.";
+            // 
+            // devicesListViewEnableControl1
+            // 
+            this.devicesListViewEnableControl1.AutoSaveChange = false;
+            this.devicesListViewEnableControl1.FirstColumnText = "Enabled";
+            this.devicesListViewEnableControl1.IsInBenchmark = false;
+            this.devicesListViewEnableControl1.IsMining = false;
+            this.devicesListViewEnableControl1.Location = new System.Drawing.Point(11, 91);
+            this.devicesListViewEnableControl1.Name = "devicesListViewEnableControl1";
+            this.devicesListViewEnableControl1.SaveToGeneralConfig = false;
+            this.devicesListViewEnableControl1.SetAllEnabled = false;
+            this.devicesListViewEnableControl1.Size = new System.Drawing.Size(435, 105);
+            this.devicesListViewEnableControl1.TabIndex = 109;
+            // 
             // Form_Main
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(565, 292);
+            this.ClientSize = new System.Drawing.Size(565, 370);
+            this.Controls.Add(this.devicesListViewEnableControl1);
+            this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.labelDemoMode);
             this.Controls.Add(this.linkLabelChooseBTCWallet);
             this.Controls.Add(this.buttonHelp);
-            this.Controls.Add(this.label_RateNVIDIA2XDollar);
-            this.Controls.Add(this.label_RateNVIDIA2XBTC);
-            this.Controls.Add(this.label_RateNVIDIA2X);
-            this.Controls.Add(this.labelNVIDIA2X_Mining_Speed);
-            this.Controls.Add(this.label23);
-            this.Controls.Add(this.label_RateAMDDollar);
-            this.Controls.Add(this.label_RateAMDBTC);
-            this.Controls.Add(this.label_RateAMD);
-            this.Controls.Add(this.labelAMDOpenCL_Mining_Speed);
-            this.Controls.Add(this.label_AMDOpenCL_Mining_Text);
             this.Controls.Add(this.buttonSettings);
-            this.Controls.Add(this.label_RateNVIDIA3XDollar);
-            this.Controls.Add(this.label_RateNVIDIA5XDollar);
-            this.Controls.Add(this.label_RateCPUDollar);
             this.Controls.Add(this.buttonBenchmark);
-            this.Controls.Add(this.label_RateNVIDIA3XBTC);
-            this.Controls.Add(this.label_RateNVIDIA3X);
-            this.Controls.Add(this.label_RateNVIDIA5XBTC);
-            this.Controls.Add(this.label_RateNVIDIA5X);
-            this.Controls.Add(this.label_RateCPUBTC);
-            this.Controls.Add(this.label_RateCPU);
-            this.Controls.Add(this.labelNVIDIA3X_Mining_Speed);
-            this.Controls.Add(this.label9);
-            this.Controls.Add(this.labelNVIDIA5X_Mining_Speed);
-            this.Controls.Add(this.label7);
-            this.Controls.Add(this.labelCPU_Mining_Speed);
-            this.Controls.Add(this.label3);
             this.Controls.Add(this.buttonStopMining);
-            this.Controls.Add(this.listViewDevices);
             this.Controls.Add(this.linkLabelVisitUs);
             this.Controls.Add(this.labelWorkerName);
             this.Controls.Add(this.textBoxWorkerName);
@@ -662,10 +393,12 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "NiceHash Miner";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
-            this.Shown += new System.EventHandler(this.Form1_Shown);
+            this.Shown += new System.EventHandler(this.Form_Main_Shown);
             this.Resize += new System.EventHandler(this.Form1_Resize);
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
+            this.groupBox1.ResumeLayout(false);
+            this.groupBox1.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -685,50 +418,25 @@
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelBalanceBTCCode;
         private System.Windows.Forms.LinkLabel linkLabelVisitUs;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelGlobalRateText;
-        private System.Windows.Forms.ColumnHeader columnHeader0;
-        private System.Windows.Forms.ColumnHeader columnHeader2;
-        private System.Windows.Forms.ColumnHeader columnHeader3;
         private System.Windows.Forms.Button buttonStopMining;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.Label labelCPU_Mining_Speed;
-        private System.Windows.Forms.Label labelNVIDIA5X_Mining_Speed;
-        private System.Windows.Forms.Label label7;
-        private System.Windows.Forms.Label labelNVIDIA3X_Mining_Speed;
-        private System.Windows.Forms.Label label9;
-        private System.Windows.Forms.Label label_RateCPU;
-        private System.Windows.Forms.Label label_RateCPUBTC;
-        private System.Windows.Forms.Label label_RateNVIDIA5XBTC;
-        private System.Windows.Forms.Label label_RateNVIDIA5X;
-        private System.Windows.Forms.Label label_RateNVIDIA3XBTC;
-        private System.Windows.Forms.Label label_RateNVIDIA3X;
         private System.Windows.Forms.Button buttonBenchmark;
-        private System.Windows.Forms.Label label_RateCPUDollar;
-        private System.Windows.Forms.Label label_RateNVIDIA5XDollar;
-        private System.Windows.Forms.Label label_RateNVIDIA3XDollar;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelBTCDayText;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelBTCDayValue;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelBalanceDollarText;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelBalanceDollarValue;
         private System.Windows.Forms.Button buttonSettings;
-        private System.Windows.Forms.Label label_AMDOpenCL_Mining_Text;
-        private System.Windows.Forms.Label labelAMDOpenCL_Mining_Speed;
-        private System.Windows.Forms.Label label_RateAMD;
-        private System.Windows.Forms.Label label_RateAMDBTC;
-        private System.Windows.Forms.Label label_RateAMDDollar;
-        private System.Windows.Forms.Label label_RateNVIDIA2XDollar;
-        private System.Windows.Forms.Label label_RateNVIDIA2XBTC;
-        private System.Windows.Forms.Label label_RateNVIDIA2X;
-        private System.Windows.Forms.Label labelNVIDIA2X_Mining_Speed;
-        private System.Windows.Forms.Label label23;
         private System.Windows.Forms.Button buttonHelp;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel10;
         private System.Windows.Forms.NotifyIcon notifyIcon1;
         private System.Windows.Forms.TextBox textBoxBTCAddress;
         private System.Windows.Forms.ComboBox comboBoxLocation;
         private System.Windows.Forms.TextBox textBoxWorkerName;
-        private System.Windows.Forms.ListView listViewDevices;
         private System.Windows.Forms.LinkLabel linkLabelChooseBTCWallet;
         private System.Windows.Forms.Label labelDemoMode;
+        private System.Windows.Forms.FlowLayoutPanel flowLayoutPanelRates;
+        private System.Windows.Forms.GroupBox groupBox1;
+        private System.Windows.Forms.Label label_NotProfitable;
+        private Forms.Components.DevicesListViewEnableControl devicesListViewEnableControl1;
     }
 }
 

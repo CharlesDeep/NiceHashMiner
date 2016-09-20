@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
+using NiceHashMiner.Configs;
 
 namespace NiceHashMiner
 {
@@ -26,7 +27,7 @@ namespace NiceHashMiner
             if (chkBoxDontShowAgain.Checked)
             {
                 Helpers.ConsolePrint("NICEHASH", "Setting ShowDriverVersionWarning to false");
-                Config.ConfigData.ShowDriverVersionWarning = false;
+                ConfigManager.Instance.GeneralConfig.ShowDriverVersionWarning = false;
             }
 
             this.Close();

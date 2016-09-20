@@ -6,6 +6,8 @@ using log4net.Repository.Hierarchy;
 using log4net.Core;
 using log4net.Appender;
 using log4net.Layout;
+using NiceHashMiner.Configs;
+using System.IO;
 
 namespace NiceHashMiner
 {
@@ -13,15 +15,23 @@ namespace NiceHashMiner
     {
         public static readonly ILog log = LogManager.GetLogger(typeof(Logger));
 
+        const string _logPath = @"logs\";
+
         public static void ConfigureWithFile()
         {
+            try {
+                if (!Directory.Exists("logs")) {
+                    Directory.CreateDirectory("logs");
+                }
+            } catch { }
+
             Hierarchy h = (Hierarchy)LogManager.GetRepository();
 
-            if (Config.ConfigData.LogToFile)
+            if (ConfigManager.Instance.GeneralConfig.LogToFile)
                 h.Root.Level = Level.Info;
-            //else if (Config.ConfigData.LogLevel == 2)
+            //else if (ConfigManager.Instance.GeneralConfig.LogLevel == 2)
             //    h.Root.Level = Level.Warn;
-            //else if (Config.ConfigData.LogLevel == 3)
+            //else if (ConfigManager.Instance.GeneralConfig.LogLevel == 3)
             //    h.Root.Level = Level.Error;
 
             h.Root.AddAppender(CreateFileAppender());
@@ -32,12 +42,13 @@ namespace NiceHashMiner
         {
             RollingFileAppender appender = new RollingFileAppender();
             appender.Name = "RollingFileAppender";
-            appender.File = "log.txt";
+            appender.File = _logPath + "log.txt";
             appender.AppendToFile = true;
             appender.RollingStyle = RollingFileAppender.RollingMode.Size;
             appender.MaxSizeRollBackups = 1;
-            appender.MaxFileSize = Config.ConfigData.LogMaxFileSize;
+            appender.MaxFileSize = ConfigManager.Instance.GeneralConfig.LogMaxFileSize;
             appender.PreserveLogFileNameExtension = true;
+            appender.Encoding = System.Text.Encoding.Unicode;
 
             PatternLayout layout = new PatternLayout();
             layout.ConversionPattern = "[%date{yyyy-MM-dd HH:mm:ss}] [%level] %message%newline";

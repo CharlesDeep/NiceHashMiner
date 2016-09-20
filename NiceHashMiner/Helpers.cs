@@ -4,30 +4,19 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using Microsoft.Win32;
+using NiceHashMiner.Configs;
+using System.Globalization;
+using NiceHashMiner.PInvoke;
+using System.Management;
 
 namespace NiceHashMiner
 {
-    class Helpers
+    class Helpers : PInvokeHelpers
     {
-        internal struct LASTINPUTINFO
-        {
-            public uint cbSize;
-            public uint dwTime;
-        }
+        
 
         static bool is64BitProcess = (IntPtr.Size == 8);
         static bool is64BitOperatingSystem = is64BitProcess || InternalCheckIsWow64();
-
-        [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsWow64Process(
-            [In] IntPtr hProcess,
-            [Out] out bool wow64Process
-        );
-
-        [DllImportAttribute("kernel32.dll", EntryPoint = "AllocConsole")]
-        [return: MarshalAsAttribute(UnmanagedType.Bool)]
-        public static extern bool AllocConsole();
 
         public static bool InternalCheckIsWow64()
         {
@@ -54,7 +43,7 @@ namespace NiceHashMiner
         {
             Console.WriteLine("[" +DateTime.Now.ToLongTimeString() + "] [" + grp + "] " + text);
 
-            if (Config.ConfigData.LogToFile)
+            if (ConfigManager.Instance.GeneralConfig.LogToFile)
                 Logger.log.Info("[" + grp + "] " + text);
         }
 
@@ -76,10 +65,7 @@ namespace NiceHashMiner
         public static void ConsolePrint(string grp, string text, object arg0, object arg1, object arg2)
         {
             ConsolePrint(grp, String.Format(text, arg0, arg1, arg2));
-        }
-
-        [DllImport("User32.dll")]
-        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);        
+        }    
 
         public static uint GetIdleTime()
         {
@@ -137,5 +123,94 @@ namespace NiceHashMiner
                 Helpers.ConsolePrint("NICEHASH", "Unable to access registry. Error: " + ex.Message);
             }
         }
+
+        public static string FormatSpeedOutput(double speed) {
+            string ret = "";
+
+            if (speed < 1000)
+                ret = (speed).ToString("F3", CultureInfo.InvariantCulture) + " H/s ";
+            else if (speed < 100000)
+                ret = (speed * 0.001).ToString("F3", CultureInfo.InvariantCulture) + " kH/s ";
+            else if (speed < 100000000)
+                ret = (speed * 0.000001).ToString("F3", CultureInfo.InvariantCulture) + " MH/s ";
+            else
+                ret = (speed * 0.000000001).ToString("F3", CultureInfo.InvariantCulture) + " GH/s ";
+
+            return ret;
+        }
+
+        public static string GetMotherboardID() {
+            ManagementObjectSearcher mos = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
+            ManagementObjectCollection moc = mos.Get();
+            string serial = "";
+            foreach (ManagementObject mo in moc) {
+                serial = (string)mo["SerialNumber"];
+            }
+
+            return serial;
+        }
+
+        // TODO could have multiple cpus
+        public static string GetCpuID() {
+            string id = "N/A";
+            try {
+                ManagementObjectCollection mbsList = null;
+                ManagementObjectSearcher mbs = new ManagementObjectSearcher("Select * From Win32_processor");
+                mbsList = mbs.Get();
+                foreach (ManagementObject mo in mbsList) {
+                    id = mo["ProcessorID"].ToString();
+                }
+            } catch { }
+            return id;
+        }
+
+        public static bool WebRequestTestGoogle() {
+            string url = "http://www.google.com";
+            try {
+                System.Net.WebRequest myRequest = System.Net.WebRequest.Create(url);
+                myRequest.Timeout = Globals.FirstNetworkCheckTimeoutTimeMS;
+                System.Net.WebResponse myResponse = myRequest.GetResponse();
+            } catch (System.Net.WebException) {
+                return false;
+            }
+            return true;
+        }
+
+        // Checking the version using >= will enable forward compatibility, 
+        // however you should always compile your code on newer versions of
+        // the framework to ensure your app works the same.
+        private static bool Is45DotVersion(int releaseKey) {
+            if (releaseKey >= 393295) {
+                //return "4.6 or later";
+                return true;
+            }
+            if ((releaseKey >= 379893)) {
+                //return "4.5.2 or later";
+                return true;
+            }
+            if ((releaseKey >= 378675)) {
+                //return "4.5.1 or later";
+                return true;
+            }
+            if ((releaseKey >= 378389)) {
+                //return "4.5 or later";
+                return true;
+            }
+            // This line should never execute. A non-null release key should mean
+            // that 4.5 or later is installed.
+            //return "No 4.5 or later version detected";
+            return false;
+        }
+
+        public static bool Is45NetOrHigher() {
+            using (RegistryKey ndpKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32).OpenSubKey("SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\\")) {
+                if (ndpKey != null && ndpKey.GetValue("Release") != null) {
+                    return Is45DotVersion((int)ndpKey.GetValue("Release"));
+                } else {
+                    return false;
+                }
+            }
+        }
+
     }
 }
